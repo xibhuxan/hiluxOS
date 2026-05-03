@@ -1,0 +1,21 @@
+{
+    "name": "example_radio",
+    "display_name": "Radio",
+    "version": "0.1.0",
+    "description": "Example Radio module demonstrating service pattern",
+    "author": "HiluxOS Team",
+    "license": "MIT",
+    "service": "RadioService",
+    "service_class": "services.radio:RadioService",
+    "group": "audio",
+    "requires_gpio": false,
+    "requires_hardware": true,
+    "ui": true,
+    "ui_class": "hiluxos.ui.screens.radio_screen:RadioScreen",
+    "screenshots": [],
+    "dependencies": [],
+    "config": {
+        "tuner_type": "fm",
+        "preset_count": 8
+    }
+}

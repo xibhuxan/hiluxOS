@@ -1,0 +1,1 @@
+{"name": "internet_radio", "display_name": "Internet Radio", "version": "0.1.0", "service": "InternetRadioService", "service_class": "services.internet_radio:InternetRadioService", "group": "audio"}

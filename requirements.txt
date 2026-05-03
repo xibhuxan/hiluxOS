@@ -1,0 +1,33 @@
+# HiluxOS - Automotive Infotainment System
+# Requirements file for virtual environment installation
+
+# Core dependencies
+PySide6>=6.5.0
+PyQt6>=6.5.0
+
+# GPIO support for Raspberry Pi
+RPi.GPIO>=0.7.1; sys_platform == "linux"
+spidev>=3.6; sys_platform == "linux"
+
+# System monitoring
+psutil>=5.9.0
+
+# Optional: Audio support
+pygame>=2.5.0; platform_system != "Darwin"
+
+# Optional: Image processing for camera module
+Pillow>=10.0.0
+
+# Optional: JSON configuration
+orjson>=3.9.0
+
+# Development dependencies (uncomment to install)
+# pytest>=7.4.0
+# pytest-qt>=4.2.0
+# black>=23.12.0
+# flake8>=6.1.0
+
+# Notes:
+# - On Raspberry Pi: sudo apt install python3-pyside6 python3-rpi.gpio
+# - On Ubuntu/Debian: sudo apt install python3-pyside6
+# - On Arch Linux: sudo pacman -S python-pyside6

@@ -1,0 +1,1 @@
+"""HAL module - Hardware Abstraction Layer"""
