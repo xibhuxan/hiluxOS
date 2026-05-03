@@ -1,5 +1,9 @@
 # HiluxOS - Automotive Infotainment System
 
+<div align="center">
+  <img src="intro.gif" width="600"/>
+</div>
+
 > [!WARNING]
 > **Project Status: Alpha / Incomplete**  
 > This project is currently under active development and is in a non-functional, experimental state. Many features described below are partially implemented or exist only as architectural skeletons.
@@ -13,9 +17,7 @@ A modular, service-oriented infotainment system designed for automotive use on L
 - **Modular Architecture**: Add new modules following a consistent pattern.
 - **Event-Driven**: Built-in EventBus for decoupled communication.
 - **Hardware Abstraction (HAL)**: Interfaces for GPIO, power management, and vehicle signals.
-- **Dual UI Support**: 
-    - **QML (Modern)**: Interactive UI using Qt Quick/QML (under development at root `main.py`).
-    - **Widgets (Legacy/Debug)**: Standard PySide6 widgets (accessible via `hiluxos/main.py`).
+- **QML**: Interactive UI using Qt Quick/QML.
 - **Service Pattern**: All services inherit from a common `BaseService`.
 
 ---
