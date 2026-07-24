@@ -1,1 +1,0 @@
-{"name": "system_audio", "display_name": "System Audio", "version": "0.1.0", "service": "SystemAudioService", "service_class": "services.system_audio:SystemAudioService", "group": "background"}
