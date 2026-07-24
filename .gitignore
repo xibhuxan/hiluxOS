@@ -28,15 +28,15 @@ flutter-sdk/
 .flutter-plugins-dependencies
 .packages
 .metadata
-frontend/.dart_tool/
-frontend/build/
-frontend/pubspec.lock
-frontend/ios/Pods/
-frontend/android/.gradle/
-frontend/android/app/build/
-frontend/linux/flutter/ephemeral/
-frontend/macos/Pods/
-frontend/windows/flutter/ephemeral/
+app/.dart_tool/
+app/build/
+app/pubspec.lock
+app/ios/Pods/
+app/android/.gradle/
+app/android/app/build/
+app/linux/flutter/ephemeral/
+app/macos/Pods/
+app/windows/flutter/ephemeral/
 
 # --- Node / npm (backend) ---
 backend/dist/

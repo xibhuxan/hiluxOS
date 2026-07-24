@@ -1,231 +1,92 @@
-# HiluxOS - Automotive Infotainment System
+# HiluxOS — Automotive Infotainment System
 
-<div align="center">
-  <img src="intro.gif" width="600"/>
-</div>
-
-> [!WARNING]
-> **Project Status: Alpha / Incomplete**  
-> This project is currently under active development and is in a non-functional, experimental state. Many features described below are partially implemented or exist only as architectural skeletons.
-
-A modular, service-oriented infotainment system designed for automotive use on Linux platforms (Raspberry Pi and MiniPC compatible).
-
----
-
-## Features (Planned & In-Progress)
-
-- **Modular Architecture**: Add new modules following a consistent pattern.
-- **Event-Driven**: Built-in EventBus for decoupled communication.
-- **Hardware Abstraction (HAL)**: Interfaces for GPIO, power management, and vehicle signals.
-- **QML**: Interactive UI using Qt Quick/QML.
-- **Service Pattern**: All services inherit from a common `BaseService`.
-
----
-
-## Quick Start
-
-### Configuration & Installation
-
-Follow these steps to set up HiluxOS on your system:
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/xibhuxan/hiluxOS.git
-   cd hiluxOS
-   ```
-
-2. **Set up virtual environment (recommended):**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Linux/macOS
-   ```
-
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the application:**
-   ```bash
-   python main.py
-   ```
-
-That's it! The QML-based interface should launch automatically.
-
----
-
-## System Requirements
-
-### Minimum Requirements
-- **OS**: Linux (Debian/Ubuntu/Raspberry Pi OS)
-- **Python**: 3.10 or higher
-- **RAM**: 2GB minimum, 4GB recommended
-- **Storage**: 500MB free space
-- **GPU**: OpenGL 3.3+ (for QML rendering)
-
----
-
-## Project Structure
+An AI-developed, human-supervised in-vehicle infotainment system. Backend in
+Node.js (NestJS + Prisma + PostgreSQL), frontend in Flutter, infrastructure in
+Docker. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design.
 
 ```
-.
-├── core/                      # Core application logic
-│   ├── app_manager.py         # Service orchestration & module discovery
-│   └── event_bus.py           # Event-driven communication system
-├── services/                  # Service implementations
-│   ├── base.py                # BaseService & AudioService abstract classes
-│   ├── internet_radio.py      # Internet radio service
-│   ├── media.py               # Media playback service
-│   ├── radio.py               # FM/AM Radio service
-│   └── system_audio.py        # System volume & audio routing
-├── ui/                        # UI components (QML & Bridge)
-│   ├── bridge.py              # Python-to-QML bridge
-│   ├── Main.qml               # Root QML interface
-│   ├── components/            # Reusable QML components
-│   └── screens/               # Screen-specific QML and Widget code
-├── hal/                       # Hardware Abstraction Layer
-│   ├── gpio_controller.py     # GPIO access (RPi + mock)
-│   ├── power_manager.py       # Power hooks (Ignition, shutdown)
-│   └── vehicle_signals.py     # Vehicle state signals (Speed, Reverse, etc.)
-├── modules/                   # Module metadata & manifests
-│   └── ...                    # Directory-based modules with manifest.json
-├── assets/                    # Images, videos, and fonts
-├── main.py                    # Primary entry point (QML-based)
-└── hiluxos/main.py            # Secondary entry point (Widget-based)
+┌─────────────┐   REST + WebSocket   ┌──────────────────┐   ┌────────────┐
+│  Flutter     │ ◄──────────────────► │  NestJS backend  │ ─► │ PostgreSQL │
+│  (app/)      │                      │  (backend/)      │   │ (Docker)   │
+└─────────────┘                      └──────────────────┘   └────────────┘
 ```
 
----
+Flutter plays audio directly (`audioplayers`); the backend only returns stream
+URLs, metadata, favorites and history.
 
-## Architecture Overview
+## Repository layout
 
-### Layers
-
-1. **UI Layer** (`ui/`) - QML files or PySide6 widgets.
-2. **Core Layer** (`core/`) - `AppManager` (lifecycle) and `EventBus` (messaging).
-3. **Services Layer** (`services/`) - Logic for specific features (Radio, Media, etc.).
-4. **HAL Layer** (`hal/`) - Hardware interaction (GPIO, signals).
-
-### Event-Driven Communication
-
-```python
-from core.event_bus import get_event_bus
-event_bus = get_event_bus()
-
-# Publish an event
-event_bus.publish("audio:volume_changed", {"volume": 80})
-
-# Subscribe to events
-event_bus.subscribe("radio:frequency_changed", callback)
+```
+app/        Flutter frontend (feature-first)
+backend/    NestJS + Prisma backend
+docker/     Docker Compose for PostgreSQL
+scripts/    setup / dev / run-app / validate
+docs/       Architecture Decision Records
+ARCHITECTURE.md   source of truth for the design
 ```
 
----
+## Prerequisites
 
-## Creating a New Module
+- Node 22 LTS
+- Flutter stable
+- Docker Engine + Compose v2
+- (Linux desktop only) GStreamer dev packages for `audioplayers`:
+  ```
+  sudo dnf install -y gstreamer1-devel gstreamer1-plugins-base-devel \
+    gstreamer1-plugins-good gstreamer1-plugins-good-extras \
+    gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-devel \
+    gstreamer1-plugins-ugly-free
+  ```
 
-Modules in HiluxOS consist of a service implementation and a manifest file.
-
-### Step 1: Create a Service
-
-Create a new file in `services/` (or within your module directory) inheriting from `BaseService`:
-
-```python
-from services.base import BaseService
-
-class MyCustomService(BaseService):
-    service_id = "my_custom"
-    service_name = "My Custom Service"
-    
-    def start(self) -> bool:
-        # Initialization logic
-        self._on_init() # Sets running=True and publishes ready event
-        return True
-    
-    def stop(self) -> bool:
-        self.running = False
-        return True
-        
-    def status(self) -> dict:
-        return {"active": self.running}
-```
-
-### Step 2: Create manifest.json
-
-Place a `manifest.json` in `modules/your_module/`:
-
-```json
-{
-    "name": "my_custom",
-    "display_name": "My Custom Module",
-    "version": "0.1.0",
-    "service": "MyCustomService",
-    "service_class": "services.my_custom:MyCustomService",
-    "group": "background"
-}
-```
-
----
-
-## Development Notes
-
-### Module Development Workflow
-
-1. Create your service class in `services/`
-2. Create a corresponding `manifest.json` in `modules/`
-3. Add any required dependencies to `requirements.txt`
-4. Restart the application to load the new module
-
-### Testing Modules
+## Quick start
 
 ```bash
-# List all loaded modules
-python main.py --list-modules
+# 1. One-time setup: start PostgreSQL, install backend deps, run migration + seed
+scripts/setup.sh
 
-# Test a specific service directly
-python -c "from services.radio import RadioService; print('Radio Service loaded')"
+# 2. Start the backend (watch mode on :3000)
+scripts/dev.sh
+
+# 3. In another terminal, run the Flutter app on Linux desktop
+scripts/run-app.sh
 ```
 
----
+By default the app reaches the backend at `http://localhost:3000`. To point it
+elsewhere (e.g. the Pi), override at build time:
 
-## Known Issues & TODO
+```bash
+flutter run -d linux \
+  --dart-define=APP_API_URL=http://192.168.1.10:3000 \
+  --dart-define=APP_WS_URL=ws://192.168.1.10:3000/events
+```
 
-- [ ] **UI Integration**: QML interface is partially connected via `bridge.py`, but many components lack real data binding.
-- [ ] **Service Architecture**: Currently, there's a duplication of `BaseService` definitions in `core/app_manager.py` and `services/base.py` that needs consolidation.
-- [ ] **Hardware Support**: GPIO and vehicle signals are mostly mocked; real hardware testing on Raspberry Pi is in early stages.
-- [ ] **Configuration System**: Global settings and module configurations are not yet fully implemented.
+## Configuration
 
----
+All configuration comes from environment variables (never hardcoded). See
+[`.env.example`](./.env.example) for the full list. The backend reads
+`backend/.env`; copy from `.env.example`.
 
-## Changelog
+## API
 
-### Version 0.1.0 (Current - Alpha)
-**Release Date**: 2026-03-05
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/health` | Liveness + DB check |
+| GET | `/api/system/info` | Static system identity |
+| GET | `/api/system/resources` | Live CPU/RAM/temperature |
+| GET | `/api/settings` | All settings as `{ key: value }` |
+| PUT | `/api/settings/:key` | Upsert a setting |
+| GET | `/api/radio/stations/search?q=` | Search Radio Browser |
+| GET | `/api/radio/favorites` | Favorite stations |
+| POST | `/api/radio/favorites` | Add a favorite |
+| GET | `/api/radio/history` | Playback history |
+| WS | `/events` | Real-time event stream |
 
-**Added:**
-- Initial QML UI implementation
-- Event bus system for decoupled communication
-- HAL layer for hardware abstraction
-- Module manifest system
-- Radio, Media, and System Audio services
+## Status
 
-**Changed:**
-- Consolidated BaseService definitions (pending)
-- Updated project structure for better modularity
+This branch (`clean/port-bootstrap`) is the active, from-scratch port. The
+functional milestone covers: health, system, settings, radio (search +
+favorites + history + playback), and a feature-first Flutter app with splash,
+dashboard, radio (with spectrum visualizer), system and settings screens.
 
-**Fixed:**
-- Resolved python-vlc dependency issue (now included in requirements.txt)
-
-**Known Issues:**
-- UI data binding incomplete
-- Hardware support still in development
-
----
-
-## License
-
-MIT License
-
----
-
-## Author
-
-HiluxOS Team
+Deferred: GPIO, power, OBD-II, media, Bluetooth, camera, voice, navigation,
+and the Invidious/YouTube proxy.

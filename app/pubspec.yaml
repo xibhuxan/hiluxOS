@@ -1,0 +1,39 @@
+name: hiluxos
+description: "hiluxOS — Flutter frontend for the in-vehicle infotainment system."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Navigation
+  go_router: ^14.6.0
+
+  # Networking
+  dio: ^5.7.0
+  web_socket_channel: ^3.0.1
+
+  # Audio playback + visualization
+  audioplayers: ^6.1.0
+
+  # Misc
+  shared_preferences: ^2.3.3
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

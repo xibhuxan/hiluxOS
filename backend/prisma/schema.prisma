@@ -1,0 +1,75 @@
+// hiluxOS Prisma schema — PostgreSQL
+// See ARCHITECTURE.md: only Prisma accesses PostgreSQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// A single application setting, keyed by name. Stores JSON-serializable values.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+/// A radio station cached from the Radio Browser API search results.
+model RadioStation {
+  id          String   @id @default(uuid())
+  name        String
+  url         String   @unique
+  favicon     String?
+  country     String?
+  codec       String?
+  bitrate     Int?
+  tags        String[]
+  createdAt   DateTime @default(now())
+
+  favorites Favorite[]
+  history   History[]
+
+  @@map("radio_stations")
+}
+
+/// A user-favorited radio station.
+model Favorite {
+  id        String   @id @default(uuid())
+  stationId String
+  station   RadioStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([stationId])
+  @@map("favorites")
+}
+
+/// An entry in the playback history (radio + future media).
+model History {
+  id        String   @id @default(uuid())
+  stationId String?
+  station   RadioStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  kind      String   @default("radio") // "radio" | "media" | ...
+  title     String
+  url       String
+  playedAt  DateTime @default(now())
+
+  @@index([playedAt])
+  @@map("history")
+}
+
+/// Append-only log of backend events (useful for diagnostics).
+model EventLog {
+  id        BigInt   @id @default(autoincrement())
+  event     String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+  @@map("event_log")
+}

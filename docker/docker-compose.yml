@@ -1,0 +1,27 @@
+# Infrastructure services for hiluxOS development.
+# Only infrastructure runs in Docker. The backend (NestJS) and the app (Flutter)
+# run directly on the host. See ARCHITECTURE.md.
+name: hiluxos
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: hiluxos_postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hiluxos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hiluxos_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-hiluxos}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hiluxos} -d ${POSTGRES_DB:-hiluxos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
