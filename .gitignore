@@ -1,0 +1,83 @@
+# HiluxOS — repo-wide ignores
+# This file lives at the repo root. Subprojects (backend/, frontend/) can add
+# their own scoped .gitignore files for tool-specific stuff.
+
+# --- Editor / IDE ---
+.aider*
+.idea/
+.vscode/
+*.iml
+
+# --- Claude / AI tooling sandbox state ---
+.claude/
+.claude.json
+.claude.local.md
+.mcp.json
+.home/
+
+# --- Flutter / Dart (frontend) ---
+# Vendored Flutter SDK (we keep it out of git; the README explains how to install)
+flutter-sdk/
+# Per-user caches and build outputs
+.xdg_config/
+.xdg_data/
+.xdg_cache/
+.pub-cache/
+.dart-tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.metadata
+frontend/.dart_tool/
+frontend/build/
+frontend/pubspec.lock
+frontend/ios/Pods/
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/linux/flutter/ephemeral/
+frontend/macos/Pods/
+frontend/windows/flutter/ephemeral/
+
+# --- Node / npm (backend) ---
+backend/dist/
+backend/node_modules/
+backend/.env
+backend/.env.local
+backend/.env.*.local
+backend/*.log
+backend/coverage/
+backend/.nest/
+
+# --- Python (legacy code removed; keeping patterns in case we ever re-touch) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+venv/
+.venv/
+
+# --- OS / shell ---
+.DS_Store
+Thumbs.db
+.bashrc
+.bash_profile
+.bash_history
+.zshrc
+.zprofile
+.profile
+.ripgreprc
+.gitconfig
+.gitmodules
+
+# --- Misc dev artifacts ---
+.cache/
+.config/
+.local/
+.npm/
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
