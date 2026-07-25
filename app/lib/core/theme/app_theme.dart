@@ -14,30 +14,42 @@ class AppTheme {
         error: AppColors.danger,
         onSurface: AppColors.onBackground,
       ),
-      scaffoldBackgroundColor: AppColors.background,
+      scaffoldBackgroundColor: Colors.transparent,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.transparent,
         foregroundColor: AppColors.onBackground,
         elevation: 0,
+        centerTitle: false,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
+        margin: EdgeInsets.zero,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
         ),
+      ),
+      dividerColor: AppColors.surfaceVariant,
+      iconTheme: const IconThemeData(color: AppColors.onBackground),
+      textTheme: base.textTheme.apply(
+        bodyColor: AppColors.onBackground,
+        displayColor: AppColors.onBackground,
+      ).copyWith(
+        headlineMedium: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.5),
+        titleLarge: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: -0.2),
+        titleMedium: const TextStyle(fontWeight: FontWeight.w600),
+        labelLarge: const TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.4),
+        bodySmall: const TextStyle(color: AppColors.muted),
       ),
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.primary,
-        labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(fontSize: 12, color: AppColors.onBackground),
-        ),
       ),
-      dividerColor: AppColors.surfaceVariant,
-      textTheme: base.textTheme.apply(
-        bodyColor: AppColors.onBackground,
-        displayColor: AppColors.onBackground,
+      sliderTheme: const SliderThemeData(
+        activeTrackColor: AppColors.primary,
+        inactiveTrackColor: AppColors.surfaceVariant,
+        thumbColor: AppColors.primary,
+        overlayColor: Color(0x3358a6ff),
       ),
     );
   }

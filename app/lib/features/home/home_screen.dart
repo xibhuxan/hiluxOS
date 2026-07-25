@@ -1,115 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
-import '../system_info/system_provider.dart';
+import '../../core/widgets/staggered_entrance.dart';
+import '../../features/system_info/system_polling_provider.dart';
+import 'widgets/now_playing_widget.dart';
+import 'widgets/system_widget.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
-  @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(systemProvider.notifier).load();
-    });
-  }
 
   @override
-  Widget build(BuildContext context) {
-    final sys = ref.watch(systemProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('hiluxOS')),
-      body: GridView.count(
-        padding: const EdgeInsets.all(16),
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.3,
-        children: [
-          _DashboardCard(
-            icon: Icons.radio,
-            title: 'Radio',
-            value: sys.resources == null ? '—' : 'Online streams',
-            color: AppColors.primary,
-            onTap: () => context.go('/radio'),
-          ),
-          _DashboardCard(
-            icon: Icons.memory,
-            title: 'System',
-            value: sys.resources == null
-                ? '—'
-                : '${sys.resources!.memoryUsagePercent.toStringAsFixed(0)}% RAM',
-            color: AppColors.accent,
-            onTap: () => context.go('/system'),
-          ),
-          _DashboardCard(
-            icon: Icons.thermostat,
-            title: 'Temp',
-            value: sys.resources?.temperature == null
-                ? 'n/a'
-                : '${sys.resources!.temperature!.toStringAsFixed(0)} °C',
-            color: AppColors.warning,
-            onTap: () => context.go('/system'),
-          ),
-          _DashboardCard(
-            icon: Icons.settings,
-            title: 'Settings',
-            value: 'Configure',
-            color: const Color(0xFFbc8cff),
-            onTap: () => context.go('/settings'),
-          ),
-        ],
-      ),
-    );
-  }
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = ref.watch(clockProvider);
+    final greeting = _greeting(now.hour);
 
-class _DashboardCard extends StatelessWidget {
-  const _DashboardCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.color,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String value;
-  final Color color;
-  final VoidCallback onTap;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Greeting
+        StaggeredEntrance(
+          index: 0,
+          child: Text(greeting,
+              style: const TextStyle(
+                  fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+        ),
+        const SizedBox(height: 4),
+        StaggeredEntrance(
+          index: 1,
+          child: const Text('Esto es lo que está pasando',
+              style: TextStyle(color: AppColors.muted, fontSize: 14)),
+        ),
+        const SizedBox(height: 20),
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+        // Plasmoid grid fills the remaining space (no scroll).
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth > 720;
+              return GridView.count(
+                crossAxisCount: wide ? 2 : 1,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: wide ? 1.05 : 1.7,
                 children: [
-                  Icon(icon, color: color, size: 32),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right, color: AppColors.muted),
+                  StaggeredEntrance(index: 2, child: const SystemWidget()),
+                  StaggeredEntrance(index: 3, child: const NowPlayingWidget()),
                 ],
-              ),
-              const Spacer(),
-              Text(title, style: const TextStyle(fontSize: 16, color: AppColors.onBackground)),
-              if (value.isNotEmpty)
-                Text(value, style: const TextStyle(color: AppColors.muted)),
-            ],
+              );
+            },
           ),
         ),
-      ),
+      ],
     );
+  }
+
+  String _greeting(int hour) {
+    if (hour < 6) return 'Buenas noches';
+    if (hour < 13) return 'Buenos días';
+    if (hour < 20) return 'Buenas tardes';
+    return 'Buenas noches';
   }
 }

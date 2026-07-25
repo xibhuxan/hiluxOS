@@ -1,51 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/colors.dart';
+import 'widgets/app_drawer_grid.dart';
+import 'widgets/status_panel.dart';
 
-/// Main layout: a body (the current route) plus a bottom navigation bar.
-class AppShell extends StatelessWidget {
+/// Main layout: a KDE-style top status panel, the routed body, and an app
+/// drawer (cajón) opened from the panel's Apps button.
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
 
-  static const _tabs = [
-    _Tab('/', Icons.home_outlined, Icons.home, 'Home'),
-    _Tab('/radio', Icons.radio_outlined, Icons.radio, 'Radio'),
-    _Tab('/system', Icons.memory_outlined, Icons.memory, 'System'),
-    _Tab('/settings', Icons.settings_outlined, Icons.settings, 'Settings'),
-  ];
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
 
-  int _indexFromLocation(String location) {
-    final idx = _tabs.indexWhere((t) => location.startsWith(t.path));
-    return idx == -1 ? 0 : idx;
-  }
+class _AppShellState extends ConsumerState<AppShell> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).uri.path;
-    final index = _indexFromLocation(location);
     return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => context.go(_tabs[i].path),
-        destinations: _tabs
-            .map(
-              (t) => NavigationDestination(
-                icon: Icon(t.icon),
-                selectedIcon: Icon(t.selectedIcon, color: AppColors.primary),
-                label: t.label,
-              ),
-            )
-            .toList(),
+      key: _scaffoldKey,
+      backgroundColor: AppColors.background,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(84),
+        child: SafeArea(
+          bottom: false,
+          child: StatusPanel(
+            onApps: () => _scaffoldKey.currentState?.openEndDrawer(),
+            onHome: () => context.go('/'),
+          ),
+        ),
+      ),
+      endDrawer: const AppDrawerGrid(),
+      body: Container(
+        decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }
-}
-
-class _Tab {
-  final String path;
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  const _Tab(this.path, this.icon, this.selectedIcon, this.label);
 }

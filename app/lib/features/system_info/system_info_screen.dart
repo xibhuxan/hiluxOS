@@ -23,7 +23,6 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(systemProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('System')),
       body: RefreshIndicator(
         onRefresh: () => ref.read(systemProvider.notifier).load(),
         child: state.loading
@@ -33,6 +32,12 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4, bottom: 8),
+                        child: Text('Sistema',
+                            style:
+                                TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                      ),
                       if (state.info != null) _infoCard('Identity', _infoRows(state.info!)),
                       const SizedBox(height: 12),
                       if (state.resources != null)

@@ -34,6 +34,7 @@ class SystemResources {
   final double totalMemoryMb;
   final int cpuCount;
   final double? temperature;
+  final double load1m;
   final int uptimeSeconds;
 
   SystemResources({
@@ -42,6 +43,7 @@ class SystemResources {
     required this.totalMemoryMb,
     required this.cpuCount,
     required this.temperature,
+    required this.load1m,
     required this.uptimeSeconds,
   });
 
@@ -51,6 +53,7 @@ class SystemResources {
         totalMemoryMb: (j['totalMemoryMb'] as num).toDouble(),
         cpuCount: j['cpuCount'] as int,
         temperature: (j['temperature'] as num?)?.toDouble(),
+        load1m: ((j['loadAverage'] as Map<String, dynamic>?)?['1m'] as num?)?.toDouble() ?? 0,
         uptimeSeconds: j['uptimeSeconds'] as int,
       );
 }

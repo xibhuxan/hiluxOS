@@ -25,12 +25,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final state = ref.watch(settingsProvider);
     final keys = state.values.keys.toList()..sort();
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
       body: state.loading && state.values.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: keys.length,
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: Text('Ajustes',
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: keys.length,
               separatorBuilder: (_, __) => const Divider(color: AppColors.surfaceVariant),
               itemBuilder: (context, i) {
                 final key = keys[i];
@@ -66,6 +74,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: Text(value, style: const TextStyle(color: AppColors.muted)),
                 );
               },
+                  ),
+                ),
+              ],
             ),
     );
   }

@@ -35,15 +35,24 @@ class _RadioScreenState extends ConsumerState<RadioScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final state = ref.watch(radioProvider);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Radio'),
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: const [Tab(text: 'Search'), Tab(text: 'Favorites'), Tab(text: 'History')],
-        ),
-      ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Row(
+              children: [
+                const Text('Radio',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          TabBar(
+            controller: _tabs,
+            isScrollable: false,
+            tabs: const [Tab(text: 'Search'), Tab(text: 'Favorites'), Tab(text: 'History')],
+          ),
+          const SizedBox(height: 12),
           _nowPlaying(state),
           Expanded(
             child: TabBarView(
