@@ -77,8 +77,8 @@ class _SplashScreenState extends State<SplashScreen>
                           builder: (_, __) {
                             final t = Curves.easeInOut.transform(_glow.value);
                             return Container(
-                              width: 180,
-                              height: 180,
+                              width: 460,
+                              height: 460,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
@@ -93,8 +93,8 @@ class _SplashScreenState extends State<SplashScreen>
                           },
                         ),
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: Image.asset('assets/images/hilux_99.png', width: 140),
+                          borderRadius: BorderRadius.circular(28),
+                          child: Image.asset('assets/images/hilux_99.png', width: 345),
                         ),
                       ],
                     ),

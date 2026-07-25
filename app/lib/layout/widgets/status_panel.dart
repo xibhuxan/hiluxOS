@@ -21,6 +21,9 @@ class StatusPanel extends ConsumerWidget {
         '${now.minute.toString().padLeft(2, '0')}';
     final date = '${_weekday(now.weekday)} '
         '${now.day.toString().padLeft(2, '0')} ${_month(now.month)}';
+    final temp = res?.temperature;
+    final ram = res?.memoryUsagePercent;
+    final up = res?.uptimeSeconds;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
@@ -47,26 +50,27 @@ class StatusPanel extends ConsumerWidget {
               runSpacing: 4,
               children: [
                 _Chip(
-                  icon: Icons.thermostat_outlined,
-                  label: res?.temperature == null
-                      ? '--°'
-                      : '${res!.temperature!.toStringAsFixed(0)}°',
-                  color: res?.temperature == null
+                  icon: Icons.speed_outlined,
+                  label: res == null
+                      ? '--%'
+                      : '${((res.load1m / res.cpuCount) * 100).clamp(0, 999).toStringAsFixed(0)}%',
+                  color: res == null
                       ? AppColors.muted
-                      : AppColors.tempColor(res!.temperature!),
+                      : AppColors.usageColor(res.load1m / res.cpuCount),
+                ),
+                _Chip(
+                  icon: Icons.thermostat_outlined,
+                  label: temp == null ? '--°' : '${temp.toStringAsFixed(0)}°',
+                  color: temp == null ? AppColors.muted : AppColors.tempColor(temp),
                 ),
                 _Chip(
                   icon: Icons.memory_outlined,
-                  label: res?.memoryUsagePercent == null
-                      ? '--%'
-                      : '${res!.memoryUsagePercent.toStringAsFixed(0)}%',
-                  color: res?.memoryUsagePercent == null
-                      ? AppColors.muted
-                      : AppColors.usageColor(res!.memoryUsagePercent / 100),
+                  label: ram == null ? '--%' : '${ram.toStringAsFixed(0)}%',
+                  color: ram == null ? AppColors.muted : AppColors.usageColor(ram / 100),
                 ),
                 _Chip(
                   icon: Icons.timer_outlined,
-                  label: res == null ? '--' : _uptime(res.uptimeSeconds),
+                  label: up == null ? '--' : _uptime(up),
                   color: AppColors.onBackground,
                 ),
               ],

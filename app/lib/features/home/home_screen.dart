@@ -32,19 +32,31 @@ class HomeScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
 
-        // Plasmoid grid fills the remaining space (no scroll).
+        // Plasmoids fill the remaining space (no scroll, no fixed aspect ratio).
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth > 720;
-              return GridView.count(
-                crossAxisCount: wide ? 2 : 1,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: wide ? 1.05 : 1.7,
+              final children = [
+                StaggeredEntrance(index: 2, child: const SystemWidget()),
+                StaggeredEntrance(index: 3, child: const NowPlayingWidget()),
+              ];
+              if (wide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: children[0]),
+                    const SizedBox(width: 16),
+                    Expanded(child: children[1]),
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  StaggeredEntrance(index: 2, child: const SystemWidget()),
-                  StaggeredEntrance(index: 3, child: const NowPlayingWidget()),
+                  Expanded(child: children[0]),
+                  const SizedBox(height: 16),
+                  Expanded(child: children[1]),
                 ],
               );
             },
