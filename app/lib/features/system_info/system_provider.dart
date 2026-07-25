@@ -36,6 +36,8 @@ class SystemResources {
   final double? temperature;
   final double load1m;
   final int uptimeSeconds;
+  final double? diskFreeGb;
+  final int? diskUsedPercent;
 
   SystemResources({
     required this.memoryUsagePercent,
@@ -45,6 +47,8 @@ class SystemResources {
     required this.temperature,
     required this.load1m,
     required this.uptimeSeconds,
+    required this.diskFreeGb,
+    required this.diskUsedPercent,
   });
 
   factory SystemResources.fromJson(Map<String, dynamic> j) => SystemResources(
@@ -55,6 +59,8 @@ class SystemResources {
         temperature: (j['temperature'] as num?)?.toDouble(),
         load1m: ((j['loadAverage'] as Map<String, dynamic>?)?['1m'] as num?)?.toDouble() ?? 0,
         uptimeSeconds: j['uptimeSeconds'] as int,
+        diskFreeGb: (j['diskFreeGb'] as num?)?.toDouble(),
+        diskUsedPercent: j['diskUsedPercent'] as int?,
       );
 }
 

@@ -17,7 +17,8 @@ export class SystemController {
   async resources() {
     const res = this.system.getResources();
     const temp = await this.system.getTemperature();
-    return { ...res, temperature: temp.celsius };
+    const disk = this.system.getDisk();
+    return { ...res, temperature: temp.celsius, diskFreeGb: disk.freeGb, diskUsedPercent: disk.usedPercent };
   }
 
   @Get('audio')

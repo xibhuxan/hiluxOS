@@ -73,3 +73,18 @@ model EventLog {
   @@index([createdAt])
   @@map("event_log")
 }
+
+/// A pending action / reminder shown on the home "Pendientes" card.
+/// kind: "date" | "km" | "version" | "none". value holds the human detail.
+model Task {
+  id        String   @id @default(uuid())
+  title     String
+  kind      String   @default("none")
+  value     String?
+  done      Boolean  @default(false)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tasks")
+}

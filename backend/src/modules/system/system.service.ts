@@ -46,6 +46,21 @@ export class SystemService {
     }
   }
 
+  /** Free/used space on the root filesystem via df. */
+  getDisk(): { freeGb: number | null; usedPercent: number | null } {
+    const out = this.run('df', ['-m', '/']);
+    if (!out) return { freeGb: null, usedPercent: null };
+    const lines = out.trim().split('\n');
+    const parts = lines[lines.length - 1].trim().split(/\s+/);
+    // Filesystem 1M-blocks Used Available Use% Mounted
+    const freeMb = parts[3] ? parseInt(parts[3], 10) : NaN;
+    const usePct = parts[4] ? parseInt(parts[4], 10) : NaN;
+    return {
+      freeGb: isNaN(freeMb) ? null : Math.round((freeMb / 1024) * 10) / 10,
+      usedPercent: isNaN(usePct) ? null : usePct,
+    };
+  }
+
   // ---- Hardware control helpers ----
 
   /** Run a command, returning stdout or null if it fails/unavailable. */
