@@ -26,7 +26,13 @@ final dioProvider = Provider<Dio>((ref) {
     connectTimeout: const Duration(seconds: 5),
     receiveTimeout: const Duration(seconds: 10),
   ));
-  dio.interceptors.add(LogInterceptor(responseHeader: false, responseBody: true));
+  dio.interceptors.add(LogInterceptor(
+    request: false,
+    requestHeader: false,
+    responseHeader: false,
+    responseBody: false,
+    error: true,
+  ));
   return dio;
 });
 

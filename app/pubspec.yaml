@@ -24,10 +24,6 @@ dependencies:
   # Audio playback + visualization
   audioplayers: ^6.1.0
 
-  # Misc
-  shared_preferences: ^2.3.3
-  google_fonts: ^6.2.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
