@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../features/system_info/controls_provider.dart';
 import '../../features/system_info/system_polling_provider.dart';
 
 /// KDE-style top panel: live clock on the left, system chips in the middle,
@@ -76,6 +77,14 @@ class StatusPanel extends ConsumerWidget {
               ],
             ),
           ),
+          // Quick controls
+          const SizedBox(width: 8),
+          const _VolumeControl(),
+          const SizedBox(width: 8),
+          const _WifiToggle(),
+          const SizedBox(width: 8),
+          const _BtToggle(),
+          const SizedBox(width: 10),
           // Actions
           _PanelButton(icon: Icons.home_outlined, onTap: onHome),
           const SizedBox(width: 8),
@@ -168,6 +177,164 @@ class _AppsButton extends StatelessWidget {
                       color: Color(0xFF0d1117),
                       fontSize: 14,
                       fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Inline volume control: mute toggle + slider. Updates the system volume
+/// through the backend on drag end.
+class _VolumeControl extends ConsumerStatefulWidget {
+  const _VolumeControl();
+  @override
+  ConsumerState<_VolumeControl> createState() => _VolumeControlState();
+}
+
+class _VolumeControlState extends ConsumerState<_VolumeControl> {
+  double? _drag;
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final audio = ref.watch(audioProvider);
+    final muted = audio.muted ?? false;
+    final vol = audio.volume == null
+        ? 0.0
+        : _dragging && _drag != null
+            ? _drag!
+            : (audio.volume!.clamp(0, 100).toDouble());
+    final effective = muted ? 0.0 : vol;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: audio.volume == null ? null : () => ref.read(audioProvider.notifier).toggleMuted(),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(
+                muted || effective == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                size: 18,
+                color: muted ? AppColors.muted : AppColors.onBackground,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 100,
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              ),
+              child: Slider(
+                min: 0,
+                max: 100,
+                value: effective,
+                onChanged: audio.volume == null
+                    ? null
+                    : (v) {
+                        setState(() {
+                          _drag = v;
+                          _dragging = true;
+                        });
+                      },
+                onChangeEnd: (v) {
+                  setState(() => _dragging = false);
+                  ref.read(audioProvider.notifier).setVolume(v.round());
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WifiToggle extends ConsumerWidget {
+  const _WifiToggle();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final net = ref.watch(networkProvider);
+    final on = net.wifiEnabled ?? false;
+    final available = net.wifiEnabled != null;
+    return _ToggleChip(
+      icon: on ? Icons.wifi : Icons.wifi_off,
+      label: on ? (net.ssid ?? 'WiFi') : 'WiFi',
+      active: on,
+      enabled: available,
+      onTap: available ? () => ref.read(networkProvider.notifier).toggle() : null,
+    );
+  }
+}
+
+class _BtToggle extends ConsumerWidget {
+  const _BtToggle();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bt = ref.watch(bluetoothProvider);
+    final on = bt.powered ?? false;
+    final available = bt.powered != null;
+    return _ToggleChip(
+      icon: on ? Icons.bluetooth : Icons.bluetooth_disabled,
+      label: on ? (bt.connected ? 'Conectado' : 'BT') : 'BT',
+      active: on,
+      enabled: available,
+      onTap: available ? () => ref.read(bluetoothProvider.notifier).toggle() : null,
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.enabled,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool active;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = !enabled
+        ? AppColors.muted
+        : active
+            ? AppColors.primary
+            : AppColors.onBackground;
+    return Material(
+      color: active
+          ? AppColors.primary.withValues(alpha: 0.16)
+          : AppColors.surfaceVariant.withValues(alpha: 0.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      color: color, fontSize: 13, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
