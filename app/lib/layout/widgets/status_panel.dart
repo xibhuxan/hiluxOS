@@ -7,10 +7,16 @@ import '../../features/system_info/system_polling_provider.dart';
 /// KDE-style top panel: volume control on the left, live clock, and
 /// Home / Apps actions on the right. System metrics live in the home cards.
 class StatusPanel extends ConsumerWidget {
-  const StatusPanel({super.key, required this.onApps, required this.onHome});
+  const StatusPanel({
+    super.key,
+    required this.onApps,
+    required this.onHome,
+    required this.onQuickPanel,
+  });
 
   final VoidCallback onApps;
   final VoidCallback onHome;
+  final VoidCallback onQuickPanel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +47,9 @@ class StatusPanel extends ConsumerWidget {
               Text(date, style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.1)),
             ],
           ),
+          // Quick Panel trigger
+          _PanelButton(icon: Icons.keyboard_arrow_down, onTap: onQuickPanel),
+          const SizedBox(width: 8),
           const Spacer(),
           // Actions
           _PanelButton(icon: Icons.home_outlined, onTap: onHome),

@@ -1,6 +1,6 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-07-27
+Última actualización: 2026-07-27 (Quick Panel)
 
 ## Stack y ramas
 
@@ -29,6 +29,7 @@
 ### Flutter (`app/`)
 - Splash animado (logo +50%, glow pulsante, barra animada, transición).
 - Shell: panel superior fijo opaco con **volumen a la izquierda** (slider 180px táctil, funcional), reloj, Home, Apps; cajón de apps (end drawer) con tiles.
+- **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Home: barra contextual + 4 cards (Estado actual, Sistema, Vehículo, Pendientes) en grid 2×2 sin scroll.
 - Pantallas: Radio (búsqueda, favoritos, historial, playback + visualizador), System, Settings — cableadas al backend.
 - `flutter analyze` sin errores.
@@ -37,6 +38,7 @@
 
 ### Inmediato
 - ✅ **Mergeado `feature/ui-polish` → `dev`** (fast-forward, 5 commits).
+- ✅ **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Decidir si subir a remoto (`master` va con fast-forward).
 
 ### UI/UX (siguiente pasada)
