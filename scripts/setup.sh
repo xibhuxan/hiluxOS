@@ -21,5 +21,13 @@ npm install
 echo "==> Generating Prisma client + applying migration..."
 npm run db:migrate
 
+echo "==> Installing udev rule for backlight permissions..."
+sudo cp "$ROOT/scripts/99-backlight.rules" /etc/udev/rules.d/99-backlight.rules
+sudo udevadm control --reload-rules
+echo "    ⚠ You may need to log out/in or run:"
+echo "      sudo chmod g+w /sys/class/backlight/intel_backlight/brightness"
+echo "      sudo chown :video /sys/class/backlight/intel_backlight/brightness"
+echo ""
+
 echo "==> Setup complete."
 echo "    Start everything with: scripts/dev.sh"

@@ -82,7 +82,11 @@ class _QuickPanelDismiss extends StatelessWidget {
       ignoring: !visible,
       child: GestureDetector(
         onTap: () => qp?.close(),
-        child: Container(color: visible ? Colors.black.withValues(alpha: 0.2) : Colors.transparent),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: visible ? Colors.black.withValues(alpha: 0.2) : Colors.transparent,
+        ),
       ),
     );
   }

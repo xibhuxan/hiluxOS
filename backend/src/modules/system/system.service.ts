@@ -197,9 +197,8 @@ export class SystemService {
     const target = Math.round((Math.max(0, Math.min(100, pct)) / 100) * max);
     try {
       fs.writeFileSync('/sys/class/backlight/intel_backlight/brightness', `${target}\n`);
-    } catch {
-      // fallback: try with tee via sudo/pkexec
-      this.runOrThrow('tee', ['/sys/class/backlight/intel_backlight/brightness'], 1000, target.toString());
+    } catch (err) {
+      console.error(`[system] Failed to write brightness: ${err}`);
     }
   }
 }
