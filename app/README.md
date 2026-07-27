@@ -1,17 +1,42 @@
-# hiluxos
+# hiluxOS — Flutter frontend
 
-A new Flutter project.
+Flutter frontend for the hiluxOS in-vehicle infotainment system. It is
+**exclusively a UI**: it renders state and sends actions to the backend over
+REST + WebSocket. It never contains business logic or accesses hardware
+directly.
 
-## Getting Started
+See [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the technical architecture
+and [`../docs/ARCHITECTURE-FUNCTIONAL.md`](../docs/ARCHITECTURE-FUNCTIONAL.md)
+for the functional/product design (UI types, element types, development
+levels).
 
-This project is a starting point for a Flutter application.
+## Run
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+# From the repo root (backend must be running on :3000)
+../scripts/run-app.sh        # flutter run -d linux
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+# Or point at a remote backend (e.g. the Raspberry Pi)
+flutter run -d linux \
+  --dart-define=APP_API_URL=http://192.168.1.10:3000 \
+  --dart-define=APP_WS_URL=ws://192.168.1.10:3000/events
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Structure
+
+Feature-first. See [`../ARCHITECTURE.md`](../ARCHITECTURE.md) "Flutter
+Architecture" for details.
+
+```
+lib/
+  core/       API client, theme, shared widgets
+  features/   splash, home, radio, system_info, settings, tasks
+  layout/     app shell, navigation, status panel
+  shared/     shared models
+```
+
+## Analyze
+
+```bash
+flutter analyze
+```

@@ -2,7 +2,9 @@
 
 An AI-developed, human-supervised in-vehicle infotainment system. Backend in
 Node.js (NestJS + Prisma + PostgreSQL), frontend in Flutter, infrastructure in
-Docker. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design.
+Docker. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the technical design and
+[`docs/ARCHITECTURE-FUNCTIONAL.md`](./docs/ARCHITECTURE-FUNCTIONAL.md) for the
+functional/product architecture (philosophy, UI types, development levels).
 
 ```
 ┌─────────────┐   REST + WebSocket   ┌──────────────────┐   ┌────────────┐
@@ -21,8 +23,9 @@ app/        Flutter frontend (feature-first)
 backend/    NestJS + Prisma backend
 docker/     Docker Compose for PostgreSQL
 scripts/    setup / dev / run-app / validate
-docs/       Architecture Decision Records
-ARCHITECTURE.md   source of truth for the design
+docs/       Architecture Decision Records + functional architecture
+ARCHITECTURE.md             source of truth for the technical design
+docs/ARCHITECTURE-FUNCTIONAL.md   source of truth for the functional/product design
 ```
 
 ## Prerequisites
@@ -83,10 +86,5 @@ All configuration comes from environment variables (never hardcoded). See
 
 ## Status
 
-This branch (`clean/port-bootstrap`) is the active, from-scratch port. The
-functional milestone covers: health, system, settings, radio (search +
-favorites + history + playback), and a feature-first Flutter app with splash,
-dashboard, radio (with spectrum visualizer), system and settings screens.
-
-Deferred: GPIO, power, OBD-II, media, Bluetooth, camera, voice, navigation,
-and the Invidious/YouTube proxy.
+See [`docs/STATUS.md`](./docs/STATUS.md) for the live project status, what works
+and the next steps.

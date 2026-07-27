@@ -15,6 +15,13 @@ The architecture must prioritize:
 
 Every architectural decision should favor maintainability over cleverness.
 
+> La **filosofía funcional** del proyecto (Backend First, Mock First, Hardware
+> Abstraction, API Driven, tipos de interfaz, tipos de elementos, niveles de
+> desarrollo y simulación) se define en
+> [`docs/ARCHITECTURE-FUNCTIONAL.md`](./docs/ARCHITECTURE-FUNCTIONAL.md), fuente
+> de verdad del nivel funcional y de producto. Este documento describe
+> únicamente la arquitectura **técnica**.
+
 ---
 
 # Technology Stack
@@ -110,6 +117,206 @@ Avoid unnecessary nesting.
 
 ---
 
+# Modular Architecture
+
+All of hiluxOS is divided into fully independent modules.
+
+A module represents a single capability of the system and must be able to
+evolve without affecting the rest of the project.
+
+No module may access the internal implementation of another module.
+
+Communication between modules is always done through services, interfaces or
+the API.
+
+> The functional rationale (Backend First, Mock First, Hardware Abstraction,
+> API Driven) is defined in
+> [`docs/ARCHITECTURE-FUNCTIONAL.md`](./docs/ARCHITECTURE-FUNCTIONAL.md). This
+> section defines the **technical rules** that enforce it.
+
+---
+
+## Objectives
+
+Modular architecture allows:
+
+- Keeping the code organized.
+- Replacing implementations without modifying other modules.
+- Easier development by AI agents.
+- Fewer dependencies.
+- Several people or agents working in parallel.
+
+---
+
+## Rules
+
+A module:
+
+- Has a single responsibility.
+- May contain frontend and backend.
+- May have its own database if needed.
+- Never knows internal details of other modules.
+- Uses only public interfaces.
+
+---
+
+## Examples
+
+Incorrect: Radio accesses Agenda's database directly.
+
+Correct: Radio requests the information through Agenda's public service.
+
+Incorrect: Flutter accesses GPIO directly.
+
+Correct:
+
+```
+Flutter
+   ↓
+API
+   ↓
+Vehicle Service
+   ↓
+Hardware Interface
+   ↓
+GPIO / ESP32 / Mock
+```
+
+---
+
+## Independence
+
+Each module must be able to be developed, tested and evolved independently.
+
+If a module disappears, the rest of the system must keep working.
+
+Example: if the Radio module ceases to exist:
+
+- Home keeps working.
+- Agenda keeps working.
+- System keeps working.
+- Vehicle keeps working.
+
+---
+
+## Communication
+
+Modules may only communicate through:
+
+- Public services.
+- Interfaces.
+- Events.
+- WebSocket.
+- API.
+
+Never through direct access to internal classes.
+
+---
+
+## Module examples
+
+System
+
+- Monitoring
+- Updates
+- Logs
+- Configuration
+
+Vehicle
+
+- Lights
+- Windows
+- Doors
+- Central locking
+- Sensors
+- Engine
+
+Multimedia
+
+- Radio
+- Bluetooth
+- USB
+- Podcasts
+
+Agenda
+
+- Revisions
+- MOT (ITV)
+- Insurance
+- Reminders
+
+Maps
+
+- GPS
+- Navigation
+- Favorites
+
+AI
+
+- Speech to Text
+- Text to Speech
+- Automations
+- Assistant
+
+---
+
+## Dependencies
+
+Dependencies must always point downwards.
+
+```
+Flutter
+   ↓
+API
+   ↓
+Services
+   ↓
+Drivers
+   ↓
+Hardware
+```
+
+Never the other way around.
+
+- Hardware never knows Flutter.
+- The backend never knows the interface.
+- Drivers never know the applications.
+
+---
+
+## Implementation substitution
+
+Every implementation must be replaceable without modifying the rest of the
+system.
+
+Example:
+
+```
+VehicleLightingService
+        ↓
+MockVehicleLightingService
+        ↓
+GPIOVehicleLightingService
+        ↓
+ESP32VehicleLightingService
+        ↓
+CANBusVehicleLightingService
+```
+
+For the rest of the system they are all exactly the same service.
+
+---
+
+## Golden Rule
+
+If implementing a new feature requires modifying several unrelated modules, the
+architecture is probably wrong.
+
+The solution must be found by creating new interfaces or new services, never by
+increasing coupling between modules.
+
+---
+
 # Flutter Architecture
 
 Use Feature First.
@@ -192,16 +399,6 @@ Typical responsibilities include:
 
 Agents should create or update these scripts whenever the workflow changes.
 
----
-
-# Documentation
-
-Every architectural decision should be documented.
-
-The project should remain understandable without external explanations.
-
----
-
 # AI Development Rules
 
 When creating new code:
@@ -227,7 +424,13 @@ The deployment process should require a single command whenever possible.
 
 ---
 
-# Philosophy
+# Repository Philosophy
+
+> The functional and product philosophy is defined in
+> [`docs/ARCHITECTURE-FUNCTIONAL.md`](./docs/ARCHITECTURE-FUNCTIONAL.md). This
+> section only covers repository-level principles.
+
+Every architectural decision should be documented.
 
 The repository should be self-contained.
 
