@@ -59,7 +59,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
           ),
           // Dismiss layer: taps outside the panel close it
-          _QuickPanelDismiss(key: _quickPanelKey),
+          const _QuickPanelDismiss(),
           // Quick Panel overlay
           QuickPanel(key: _quickPanelKey),
         ],
@@ -71,7 +71,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 /// Transparent overlay that closes the Quick Panel when tapped.
 /// Only captures events when the panel is open.
 class _QuickPanelDismiss extends StatelessWidget {
-  const _QuickPanelDismiss({super.key});
+  const _QuickPanelDismiss();
 
   @override
   Widget build(BuildContext context) {
