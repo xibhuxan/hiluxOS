@@ -1,6 +1,6 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-07-27 (Quick Panel)
+Última actualización: 2026-07-27 (Brightness real + hot reload)
 
 ## Stack y ramas
 
@@ -20,6 +20,7 @@
 - `GET|PUT /api/system/audio` — volumen real del SO (wpctl, amixer fallback) + mute.
 - `GET|PUT /api/system/network` — WiFi real (nmcli) + toggle.
 - `GET|PUT /api/system/bluetooth` — Bluetooth real (bluetoothctl) + toggle.
+- **`GET|PUT /api/system/brightness`** — brillo real vía sysfs (lectura/escritura en `/sys/class/backlight/intel_backlight/brightness`).
 - `GET|PUT|DELETE /api/settings` — CRUD de ajustes.
 - `GET /api/radio/stations/search`, `/radio/favorites` (GET/POST/DELETE), `/radio/history`, `/radio/stream/:id` — Radio Browser API.
 - `GET /api/tasks` (+ POST/PUT/DELETE) — módulo Pendientes, con seed (ITV, aceite, update, backup).
@@ -36,15 +37,31 @@
 
 ## Pendiente / siguientes pasos
 
+### ⚠️ Brightness — permisos (pendiente de aplicar)
+El backend ya tiene el endpoint `/system/brightness` y el slider del Quick Panel lo usa. **Pero** `/sys/class/backlight/intel_backlight/brightness` es de `root:root` con permisos `-rw-r--r--`, así que el backend (corre como `xibhu`) no puede escribir. Ya está creada la regla udev (`scripts/99-backlight.rules`) y el `setup.sh` actualizado, pero **falta aplicar los permisos manualmente** tras el reinicio:
+
+```bash
+# 1. Asegurar que tu usuario está en el grupo video
+sudo usermod -aG video $USER
+# 2. Dar permisos ahora mismo (sin reiniciar)
+sudo chmod g+w /sys/class/backlight/intel_backlight/brightness
+sudo chown :video /sys/class/backlight/intel_backlight/brightness
+# 3. Verificar
+ls -la /sys/class/backlight/intel_backlight/brightness
+#    Debe mostrar: -rw-rw-r--. 1 root video ...
+```
+
+Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
+
 ### Inmediato
-- ✅ **Mergeado `feature/ui-polish` → `dev`** (fast-forward, 5 commits).
-- ✅ **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
+- ✅ **Quick Panel**: overlay deslizante con toggles WiFi/BT, sliders volumen/brillo, indicadores. Cierra tocando fuera.
+- ✅ **Brightness real**: endpoint backend + provider Flutter conectado a `/system/brightness`.
+- ✅ **Hot reload**: `scripts/run-app.sh` ahora muestra banner y usa `--debug`.
 - Decidir si subir a remoto (`master` va con fast-forward).
 
 ### UI/UX (siguiente pasada)
 - Pulido interno de las apps: **Radio** (shimmer al buscar, entrada animada de ítems, "pop" del icono de favorito, now-playing más vistoso), **System**, **Settings** (cabeceras, feedback).
 - La card **Sistema** tiene una celda vacía (8º hueco): rellenar con algo útil (p. ej. estado de red global, versión, o un mini gauges) o redistribuir.
-- **Brillo**: persiste en `/settings` pero no controla el hardware; en la Pi, wired real (rpi-backlight/DDC). Falta decidir dónde va su control.
 - **Configuración de WiFi/Bluetooth** en una pantalla aparte (los toggles reales viven en los providers `networkProvider`/`bluetoothProvider`, hoy solo informativos en la card Sistema).
 - **Pendientes**: hoy solo listar + completar; falta **crear/editar** tareas desde la UI (el backend ya soporta POST/PUT/DELETE).
 - Recordatorios de mantenimiento / prioridad de tareas (backend tiene `priority`, no se ordena en UI).
@@ -63,6 +80,6 @@
 ```bash
 scripts/setup.sh    # Postgres + deps + migración + seed (1ª vez)
 scripts/dev.sh      # backend en :3000 (watch)
-scripts/run-app.sh  # flutter run -d linux (otra terminal)
+scripts/run-app.sh  # flutter run -d linux (otra terminal, hot reload con r)
 ```
 Más detalle en `docs/USAGE.md`. Diseño fuente de verdad: `ARCHITECTURE.md`.
