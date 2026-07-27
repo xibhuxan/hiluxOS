@@ -7,8 +7,8 @@
 - **Stack**: NestJS + Prisma + PostgreSQL (backend, host) · Flutter (app, host) · PostgreSQL en Docker.
 - **Ramas**:
   - `master` → `51c3bad` (4 commits por delante de `origin/master`, **sin push**).
-  - `dev` → `b6acf7e`.
-  - `feature/ui-polish` → `292813e` (rama activa de UI; **pendiente merge a `dev`**).
+  - `dev` → `4c8de70` (mergeado desde `feature/ui-polish`).
+  - `feature/ui-polish` → `4c8de70` (ya mergeada a `dev`, se puede eliminar).
 - **Sin push** a remoto en ninguna rama. Cuando se quiera publicar: `git push origin master` (fast-forward) + `git push -u origin dev`.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
 
@@ -36,7 +36,7 @@
 ## Pendiente / siguientes pasos
 
 ### Inmediato
-- **Mergeear `feature/ui-polish` → `dev`** (commit `292813e` aún no integrado).
+- ✅ **Mergeado `feature/ui-polish` → `dev`** (fast-forward, 5 commits).
 - Decidir si subir a remoto (`master` va con fast-forward).
 
 ### UI/UX (siguiente pasada)
