@@ -7,6 +7,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { RadioModule } from './modules/radio/radio.module';
 import { EventsModule } from './modules/events/events.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { EventLogModule } from './modules/event-log/event-log.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
     RadioModule,
     EventsModule,
     TasksModule,
+    EventLogModule,
   ],
 })
 export class AppModule {}
