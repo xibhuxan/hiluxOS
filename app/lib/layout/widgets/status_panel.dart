@@ -35,7 +35,10 @@ class StatusPanel extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Volume (left, wide for finger precision)
+          // Quick Panel trigger (leftmost)
+          _PanelButton(icon: Icons.keyboard_arrow_down, onTap: onQuickPanel),
+          const SizedBox(width: 8),
+          // Volume
           const _VolumeControl(),
           const SizedBox(width: 18),
           // Clock
@@ -47,9 +50,6 @@ class StatusPanel extends ConsumerWidget {
               Text(date, style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.1)),
             ],
           ),
-          // Quick Panel trigger
-          _PanelButton(icon: Icons.keyboard_arrow_down, onTap: onQuickPanel),
-          const SizedBox(width: 8),
           const Spacer(),
           // Actions
           _PanelButton(icon: Icons.home_outlined, onTap: onHome),

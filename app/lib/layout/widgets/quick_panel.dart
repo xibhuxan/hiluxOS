@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../features/system_info/controls_provider.dart';
-import '../../features/system_info/internet_provider.dart';
-import '../../features/system_info/health_provider.dart';
 import '../../features/system_info/quick_panel_provider.dart';
 
 /// Quick Panel overlay: slides down from the top with WiFi/BT toggles,
@@ -127,9 +125,6 @@ class QuickPanelState extends ConsumerState<QuickPanel>
                     getValue: _brightnessValue,
                     onChanged: _brightnessChanged,
                   ),
-                  const SizedBox(height: 12),
-                  // Status row
-                  const _StatusRow(),
                 ],
               ),
             ),
@@ -266,7 +261,7 @@ class _SliderTile extends ConsumerWidget {
           Icon(icon, size: 18, color: AppColors.onBackground),
           const SizedBox(width: 10),
           SizedBox(
-            width: 48,
+            width: 64,
             child: Text(label,
                 style: const TextStyle(
                     fontSize: 13,
@@ -307,78 +302,4 @@ class _SliderTile extends ConsumerWidget {
   }
 }
 
-// ---- Status row ----
 
-class _StatusRow extends ConsumerWidget {
-  const _StatusRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final internet = ref.watch(internetProvider);
-    final health = ref.watch(healthProvider);
-
-    return Row(
-      children: [
-        _StatusChip(
-          icon: Icons.public,
-          label: 'Internet',
-          ok: internet.reachable,
-        ),
-        const SizedBox(width: 12),
-        _StatusChip(
-          icon: Icons.dns,
-          label: 'Backend',
-          ok: health.ok,
-        ),
-        const Spacer(),
-        Text('Toca fuera para cerrar',
-            style: TextStyle(
-                fontSize: 11, color: AppColors.muted.withValues(alpha: 0.6))),
-      ],
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.icon,
-    required this.label,
-    required this.ok,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool ok;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: ok ? AppColors.accent : AppColors.muted),
-          const SizedBox(width: 5),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: ok ? AppColors.accent : AppColors.muted)),
-          const SizedBox(width: 4),
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: ok ? AppColors.accent : AppColors.danger,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
