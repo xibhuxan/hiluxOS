@@ -21,6 +21,11 @@ export class SystemController {
     return { ...res, temperature: temp.celsius, diskFreeGb: disk.freeGb, diskUsedPercent: disk.usedPercent };
   }
 
+  @Get('internet')
+  async internet() {
+    return this.system.checkInternet();
+  }
+
   @Get('audio')
   audio() {
     return this.system.getAudio();

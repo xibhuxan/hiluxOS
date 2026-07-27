@@ -61,6 +61,19 @@ export class SystemService {
     };
   }
 
+  // ---- Internet connectivity ----
+
+  /** Check internet reachability via a lightweight HEAD request. */
+  async checkInternet(): Promise<{ reachable: boolean; latencyMs: number | null }> {
+    const start = Date.now();
+    try {
+      const res = await fetch('https://1.1.1.1', { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+      return { reachable: res.ok, latencyMs: Date.now() - start };
+    } catch {
+      return { reachable: false, latencyMs: null };
+    }
+  }
+
   // ---- Hardware control helpers ----
 
   /** Run a command, returning stdout or null if it fails/unavailable. */

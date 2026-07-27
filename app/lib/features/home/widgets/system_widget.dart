@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../system_info/controls_provider.dart';
+import '../../system_info/health_provider.dart';
+import '../../system_info/internet_provider.dart';
 import '../../system_info/system_polling_provider.dart';
 
 /// System health card: a compact 2-column stat grid — no progress bars, and
 /// each cell scales to fit so it never overflows the card. CPU, RAM, disk,
-/// temperature, uptime, plus WiFi and Bluetooth status.
+/// temperature, uptime, plus WiFi, Bluetooth, Internet and Backend status.
 class SystemWidget extends ConsumerWidget {
   const SystemWidget({super.key});
 
@@ -16,6 +18,8 @@ class SystemWidget extends ConsumerWidget {
     final res = ref.watch(systemPollingProvider).resources;
     final net = ref.watch(networkProvider);
     final bt = ref.watch(bluetoothProvider);
+    final internet = ref.watch(internetProvider);
+    final health = ref.watch(healthProvider);
 
     final cpuPct = res == null ? null : (res.load1m / res.cpuCount * 100).clamp(0, 999);
     final ramPct = res?.memoryUsagePercent;
@@ -59,6 +63,12 @@ class SystemWidget extends ConsumerWidget {
                 _hdiv,
                 Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Expanded(child: _Conn(Icons.bluetooth, 'Bluetooth', bt.connected ? 'Conectado' : (bt.powered == true ? 'Activo' : 'Apagado'), bt.connected)),
+                  _vdiv,
+                  Expanded(child: _Conn(Icons.public, 'Internet', internet.reachable ? 'Conectado' : 'Sin conexión', internet.reachable)),
+                ])),
+                _hdiv,
+                Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: _Conn(Icons.dns, 'Backend', health.ok ? (health.databaseOk ? 'Online' : 'Sin DB') : 'Offline', health.ok)),
                   _vdiv,
                   const Expanded(child: SizedBox()),
                 ])),
