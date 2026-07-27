@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import os from 'node:os';
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 @Injectable()
@@ -37,9 +37,9 @@ export class SystemService {
   }
 
   /** Read temperature from the first available thermal zone (Linux/RPi). */
-  async getTemperature(): Promise<{ celsius: number | null }> {
+  getTemperature(): { celsius: number | null } {
     try {
-      const raw = await fs.readFile('/sys/class/thermal/thermal_zone0/temp', 'utf8');
+      const raw = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
       return { celsius: parseInt(raw.trim(), 10) / 1000 };
     } catch {
       return { celsius: null };
@@ -90,12 +90,14 @@ export class SystemService {
   }
 
   /** Run a command, throwing if it fails. */
-  private runOrThrow(bin: string, args: string[], timeoutMs = 2000): string {
-    return execFileSync(bin, args, {
+  private runOrThrow(bin: string, args: string[], timeoutMs = 2000, stdin?: string): string {
+    const proc = execFileSync(bin, args, {
       encoding: 'utf8',
       timeout: timeoutMs,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: stdin,
     });
+    return proc;
   }
 
   // ---- Audio (wpctl, amixer fallback) ----
@@ -172,5 +174,32 @@ export class SystemService {
 
   setBluetooth(powered: boolean): void {
     this.runOrThrow('bluetoothctl', ['power', powered ? 'on' : 'off']);
+  }
+
+  // ---- Brightness (sysfs backlight) ----
+
+  getBrightness(): { brightness: number | null; maxBrightness: number | null } {
+    const raw = this.run('cat', ['/sys/class/backlight/intel_backlight/brightness']);
+    const maxRaw = this.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    if (raw === null || maxRaw === null) return { brightness: null, maxBrightness: null };
+    const current = parseInt(raw.trim(), 10);
+    const max = parseInt(maxRaw.trim(), 10);
+    if (isNaN(current) || isNaN(max) || max === 0) return { brightness: null, maxBrightness: null };
+    return { brightness: Math.round((current / max) * 100), maxBrightness: max };
+  }
+
+  setBrightness(pct: number | undefined): void {
+    if (pct === undefined) return;
+    const maxRaw = this.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    if (maxRaw === null) return;
+    const max = parseInt(maxRaw.trim(), 10);
+    if (isNaN(max) || max === 0) return;
+    const target = Math.round((Math.max(0, Math.min(100, pct)) / 100) * max);
+    try {
+      fs.writeFileSync('/sys/class/backlight/intel_backlight/brightness', `${target}\n`);
+    } catch {
+      // fallback: try with tee via sudo/pkexec
+      this.runOrThrow('tee', ['/sys/class/backlight/intel_backlight/brightness'], 1000, target.toString());
+    }
   }
 }

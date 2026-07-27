@@ -3,6 +3,7 @@ import { SystemService } from './system.service';
 import { AudioDto } from './dto/audio.dto';
 import { NetworkToggleDto } from './dto/network.dto';
 import { BluetoothToggleDto } from './dto/bluetooth.dto';
+import { BrightnessDto } from './dto/brightness.dto';
 
 @Controller('system')
 export class SystemController {
@@ -14,9 +15,9 @@ export class SystemController {
   }
 
   @Get('resources')
-  async resources() {
+  resources() {
     const res = this.system.getResources();
-    const temp = await this.system.getTemperature();
+    const temp = this.system.getTemperature();
     const disk = this.system.getDisk();
     return { ...res, temperature: temp.celsius, diskFreeGb: disk.freeGb, diskUsedPercent: disk.usedPercent };
   }
@@ -58,5 +59,16 @@ export class SystemController {
   setBluetooth(@Body() dto: BluetoothToggleDto) {
     this.system.setBluetooth(dto.powered);
     return this.system.getBluetooth();
+  }
+
+  @Get('brightness')
+  brightness() {
+    return this.system.getBrightness();
+  }
+
+  @Put('brightness')
+  setBrightness(@Body() dto: BrightnessDto) {
+    this.system.setBrightness(dto.brightness);
+    return this.system.getBrightness();
   }
 }

@@ -3,7 +3,7 @@ import '../../core/api/api_client.dart';
 
 // ---- Brightness ----
 
-/// Brightness state backed by the /settings/brightness endpoint.
+/// Brightness state backed by the /system/brightness endpoint.
 class BrightnessState {
   final int value;
   final bool loading;
@@ -19,9 +19,9 @@ class BrightnessNotifier extends StateNotifier<BrightnessState> {
   Future<void> refresh() async {
     state = BrightnessState(value: state.value, loading: true);
     try {
-      final res = await _api.get('/settings/brightness');
+      final res = await _api.get('/system/brightness');
       final d = res.data as Map<String, dynamic>;
-      final raw = d['value'];
+      final raw = d['brightness'];
       final v = raw == null ? 80 : int.tryParse(raw.toString()) ?? 80;
       state = BrightnessState(value: v.clamp(0, 100));
     } catch (_) {
@@ -32,7 +32,7 @@ class BrightnessNotifier extends StateNotifier<BrightnessState> {
   Future<void> setBrightness(int pct) async {
     state = BrightnessState(value: pct.clamp(0, 100));
     try {
-      await _api.put('/settings/brightness', data: {'value': pct.clamp(0, 100).toString()});
+      await _api.put('/system/brightness', data: {'brightness': pct.clamp(0, 100)});
     } catch (_) {}
     await refresh();
   }
