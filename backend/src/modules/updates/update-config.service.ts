@@ -5,8 +5,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 
 /**
- * Provides version info, filesystem layout, and the public key used for
- * signature verification.
+ * Provides version info and filesystem layout for OTA updates.
  *
  * Layout on disk:
  *   /opt/hiluxos/
@@ -14,8 +13,7 @@ import { execSync } from 'node:child_process';
  *     versions/
  *       0.1.0/                          (backup, still works)
  *       0.2.0/                          (active)
- *     releases/                         (downloaded .hiluxos bundles)
- *     state.json                        (update state machine)
+ *     releases/                         (downloaded tarballs)
  */
 @Injectable()
 export class UpdateConfigService {
@@ -24,19 +22,24 @@ export class UpdateConfigService {
   readonly releasesDir: string;
   readonly versionsDir: string;
   readonly currentSymlink: string;
-  readonly stateFile: string;
 
   constructor(private readonly config: ConfigService) {
     this.installRoot = this.config.get<string>('UPDATE_INSTALL_ROOT', '/opt/hiluxos');
     this.releasesDir = path.join(this.installRoot, 'releases');
     this.versionsDir = path.join(this.installRoot, 'versions');
     this.currentSymlink = path.join(this.installRoot, 'current');
-    this.stateFile = path.join(this.installRoot, 'state.json');
   }
 
-  /** Get the current backend version from package.json. */
+  /** Get the current version from VERSION.txt. */
   getCurrentVersion(): string {
     try {
+      // First try VERSION.txt next to the backend (repo root).
+      const repoRoot = path.resolve(process.cwd(), '..');
+      const versionFile = path.join(repoRoot, 'VERSION.txt');
+      if (fs.existsSync(versionFile)) {
+        return fs.readFileSync(versionFile, 'utf8').trim();
+      }
+      // Fallback: backend/package.json version.
       const pkg = JSON.parse(
         fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
       );
@@ -56,34 +59,20 @@ export class UpdateConfigService {
     }
   }
 
-  /** Get the update server base URL (GitHub releases by default). */
-  getUpdateServerUrl(): string {
+  /** Get the raw URL of VERSION.txt on master. */
+  getVersionCheckUrl(): string {
     return this.config.get<string>(
-      'UPDATE_SERVER_URL',
-      'https://api.github.com/repos/xibhuxan/hiluxOS/releases/latest',
+      'UPDATE_VERSION_URL',
+      'https://raw.githubusercontent.com/xibhuxan/hiluxOS/master/VERSION.txt',
     );
   }
 
-  /** Get the public key for signature verification (Ed25519, base64). */
-  getPublicKey(): string | null {
-    // Can be set via env var or a file on disk.
-    const envKey = this.config.get<string>('UPDATE_PUBLIC_KEY');
-    if (envKey) return envKey;
-
-    const keyFile = this.config.get<string>('UPDATE_PUBLIC_KEY_FILE');
-    if (keyFile) {
-      try {
-        return fs.readFileSync(keyFile, 'utf8').trim();
-      } catch {
-        this.logger.warn(`Public key file not readable: ${keyFile}`);
-      }
-    }
-    return null;
-  }
-
-  /** Whether signature verification is required. */
-  isSignatureRequired(): boolean {
-    return this.config.get<string>('UPDATE_REQUIRE_SIGNATURE', 'true') !== 'false';
+  /** Get the tarball URL for downloading the whole repo at a given ref. */
+  getTarballUrl(): string {
+    return this.config.get<string>(
+      'UPDATE_TARBALL_URL',
+      'https://github.com/xibhuxan/hiluxOS/archive/refs/heads/master.tar.gz',
+    );
   }
 
   /** Ensure required directories exist. */

@@ -8,7 +8,6 @@ enum UpdateStatus {
   idle,
   checking,
   downloading,
-  verifying,
   applying,
   restarting,
   done,
@@ -23,8 +22,6 @@ UpdateStatus _parseStatus(String? s) {
       return UpdateStatus.checking;
     case 'downloading':
       return UpdateStatus.downloading;
-    case 'verifying':
-      return UpdateStatus.verifying;
     case 'applying':
       return UpdateStatus.applying;
     case 'restarting':

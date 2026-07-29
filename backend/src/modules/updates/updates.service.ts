@@ -3,42 +3,36 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EventsGateway } from '../events/events.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UpdateConfigService } from './update-config.service';
-import { SignatureService } from './signature.service';
 import { UpdateInfoDto, UpdateStatus } from './dto/update.dto';
 import fs from 'node:fs';
 import path from 'node:path';
 import tar from 'tar';
 
 /**
- * OTA update engine: check → download → verify → apply → restart → rollback.
+ * Simple OTA update engine: check → download → apply → restart → rollback.
  *
  * Strategy: blue-green with symlink swap.
  *   /opt/hiluxos/
  *     current → versions/X.Y.Z    (symlink)
  *     versions/                   (each version is self-contained)
- *     releases/                   (downloaded bundles)
+ *     releases/                   (downloaded tarballs)
  *
- * The backend restarts itself after applying; if the health check fails
- * within N seconds, the systemd watcher rolls back to the previous symlink.
+ * Check: fetches VERSION.txt from master and compares.
+ * Apply: downloads the master tarball, extracts, npm ci, prisma migrate,
+ *        swaps the symlink, and restarts.
  */
 @Injectable()
 export class UpdatesService {
   private readonly logger = new Logger(UpdatesService.name);
   private status: UpdateStatus = 'idle';
   private lastError: string | null = null;
-  private latestInfo: {
-    version: string;
-    releaseNotes: string | null;
-    bundleUrl: string | null;
-    signatureUrl: string | null;
-  } | null = null;
+  private latestVersion: string | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsGateway,
     private readonly notifications: NotificationsService,
     private readonly config: UpdateConfigService,
-    private readonly signatures: SignatureService,
   ) {}
 
   /** Get the current update status. */
@@ -54,12 +48,13 @@ export class UpdatesService {
     });
     return {
       currentVersion,
-      latestVersion: this.latestInfo?.version ?? null,
-      updateAvailable: this.latestInfo != null
-        ? this.compareVersions(this.latestInfo.version, currentVersion) > 0
-        : false,
-      releaseNotes: this.latestInfo?.releaseNotes ?? null,
-      bundleUrl: this.latestInfo?.bundleUrl ?? null,
+      latestVersion: this.latestVersion,
+      updateAvailable:
+        this.latestVersion != null
+          ? this.compareVersions(this.latestVersion, currentVersion) > 0
+          : false,
+      releaseNotes: null,
+      bundleUrl: null,
       status: this.status,
       lastError: this.lastError,
       lastAppliedVersion: lastLog?.toVersion ?? null,
@@ -67,8 +62,7 @@ export class UpdatesService {
   }
 
   /**
-   * Check the update server for a newer release.
-   * Populates `latestInfo` and broadcasts the status via WebSocket.
+   * Check for a newer version by fetching VERSION.txt from master.
    */
   async checkForUpdates(): Promise<UpdateInfoDto> {
     this.setStatus('checking');
@@ -76,37 +70,18 @@ export class UpdatesService {
     await this.logStatus('checking');
 
     try {
-      const url = this.config.getUpdateServerUrl();
+      const url = this.config.getVersionCheckUrl();
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'hiluxOS-updater', Accept: 'application/json' },
+        headers: { 'User-Agent': 'hiluxOS-updater' },
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) throw new Error(`Update server returned ${res.status}`);
+      if (!res.ok) throw new Error(`Version check returned ${res.status}`);
 
-      const release = await res.json() as {
-        tag_name: string;
-        body: string;
-        assets: Array<{ name: string; browser_download_url: string }>;
-      };
+      const version = (await res.text()).trim();
+      if (!version) throw new Error('VERSION.txt is empty');
 
-      const version = release.tag_name.replace(/^v/, '');
-      const bundleAsset = release.assets.find((a) =>
-        a.name.endsWith('.hiluxos') || a.name.endsWith('.tar.gz'),
-      );
-      const sigAsset = release.assets.find((a) =>
-        a.name.endsWith('.hiluxos.sig') || a.name.endsWith('.tar.gz.sig'),
-      );
-
-      this.latestInfo = {
-        version,
-        releaseNotes: release.body ?? null,
-        bundleUrl: bundleAsset?.browser_download_url ?? null,
-        signatureUrl: sigAsset?.browser_download_url ?? null,
-      };
-
-      this.logger.log(
-        `Latest version: ${version}, bundle: ${this.latestInfo.bundleUrl ?? 'none'}`,
-      );
+      this.latestVersion = version;
+      this.logger.log(`Latest version on master: ${version}`);
       this.setStatus('idle');
       return await this.getInfo();
     } catch (err) {
@@ -119,13 +94,10 @@ export class UpdatesService {
   }
 
   /**
-   * Download, verify, and apply an update.
+   * Download master tarball, extract, install deps, migrate, swap, restart.
    * This is the main OTA entry point.
    */
-  async applyUpdate(
-    version: string,
-    bundleUrlOverride?: string,
-  ): Promise<{ success: boolean; message: string }> {
+  async applyUpdate(version: string): Promise<{ success: boolean; message: string }> {
     if (this.status !== 'idle' && this.status !== 'failed') {
       return { success: false, message: `Update already in progress: ${this.status}` };
     }
@@ -133,40 +105,14 @@ export class UpdatesService {
     const fromVersion = this.config.getCurrentVersion();
     this.config.ensureDirs();
 
-    const bundleUrl = bundleUrlOverride ?? this.latestInfo?.bundleUrl;
-    const signatureUrl = this.latestInfo?.signatureUrl;
-
-    if (!bundleUrl) {
-      return { success: false, message: 'No bundle URL available. Run check first.' };
-    }
-
     try {
-      // 1. Download
+      // 1. Download master tarball
       this.setStatus('downloading');
-      await this.logStatus('downloading', undefined, version, bundleUrl);
-      const bundlePath = await this.downloadBundle(bundleUrl);
+      await this.logStatus('downloading', undefined, version);
+      const bundlePath = await this.downloadBundle(this.config.getTarballUrl());
       this.broadcastProgress('downloaded', { path: bundlePath });
 
-      // 2. Verify signature
-      this.setStatus('verifying');
-      await this.logStatus('verifying');
-      if (this.config.isSignatureRequired()) {
-        const publicKey = this.config.getPublicKey();
-        if (!publicKey) {
-          throw new Error('Signature required but no public key configured.');
-        }
-        const sigContent = await this.downloadText(signatureUrl ?? null);
-        if (!sigContent) {
-          throw new Error('Signature required but no .sig file found.');
-        }
-        const valid = this.signatures.verify(bundlePath, sigContent.trim(), publicKey);
-        if (!valid) {
-          throw new Error('Signature verification failed! Bundle may be tampered.');
-        }
-        this.logger.log('Signature verified OK.');
-      }
-
-      // 3. Apply: extract → npm ci → prisma migrate → swap symlink
+      // 2. Apply: extract → npm ci → prisma migrate → swap symlink
       this.setStatus('applying');
       await this.logStatus('applying');
       const versionDir = await this.extractBundle(bundlePath, version);
@@ -175,7 +121,7 @@ export class UpdatesService {
       this.swapSymlink(versionDir);
       this.broadcastProgress('applied', { version });
 
-      // 4. Restart
+      // 3. Restart
       this.setStatus('restarting');
       await this.logStatus('restarting', undefined, version);
       this.logger.log(`Update ${version} applied. Scheduling restart...`);
@@ -272,13 +218,6 @@ export class UpdatesService {
     await new Promise<void>((resolve) => fileStream.end(() => resolve()));
     this.logger.log(`Downloaded ${received} bytes.`);
     return dest;
-  }
-
-  private async downloadText(url: string | null): Promise<string | null> {
-    if (!url) return null;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return res.text();
   }
 
   private async extractBundle(bundlePath: string, version: string): Promise<string> {

@@ -186,8 +186,6 @@ class UpdateSection extends ConsumerWidget {
         return 'Comprobando...';
       case UpdateStatus.downloading:
         return 'Descargando...';
-      case UpdateStatus.verifying:
-        return 'Verificando firma...';
       case UpdateStatus.applying:
         return 'Instalando...';
       case UpdateStatus.restarting:

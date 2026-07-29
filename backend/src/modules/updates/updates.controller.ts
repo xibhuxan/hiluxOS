@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { UpdatesService } from './updates.service';
-import { ApplyUpdateDto, CheckUpdateDto } from './dto/update.dto';
+import { ApplyUpdateDto } from './dto/update.dto';
 
 @Controller('updates')
 export class UpdatesController {
@@ -12,16 +12,16 @@ export class UpdatesController {
     return this.svc.getInfo();
   }
 
-  /** Check for updates (queries the release server). */
+  /** Check for updates (fetches VERSION.txt from master). */
   @Post('check')
-  async check(@Body() _dto?: CheckUpdateDto) {
+  async check() {
     return this.svc.checkForUpdates();
   }
 
-  /** Apply an update: download + verify + install + restart. */
+  /** Apply an update: download master + install + restart. */
   @Post('apply')
   async apply(@Body() dto: ApplyUpdateDto) {
-    return this.svc.applyUpdate(dto.version, dto.bundleUrl);
+    return this.svc.applyUpdate(dto.version);
   }
 
   /** Roll back to the previous version. */
