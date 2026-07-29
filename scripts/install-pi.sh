@@ -57,6 +57,8 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'"
   || sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};"
 sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" >/dev/null
 systemctl enable --now postgresql
+# On some Raspberry Pi OS images, postgresql doesn't auto-start after install.
+systemctl is-active --quiet postgresql || systemctl start postgresql
 ok "Database '${DB_NAME}' ready"
 
 # ── 4. System user + directories ──────────────────────────────────────
@@ -122,6 +124,9 @@ ok "current → $VERSION"
 
 # ── 10. systemd service ───────────────────────────────────────────────
 log "Installing systemd service..."
+NODE_BIN="$(command -v node)"
+[[ -n "$NODE_BIN" ]] || die "node binary not found in PATH"
+
 cat > /etc/systemd/system/hiluxos-backend.service <<EOF
 [Unit]
 Description=hiluxOS backend API
@@ -133,7 +138,7 @@ Type=simple
 User=${SERVICE_USER}
 WorkingDirectory=${INSTALL_ROOT}/current/backend
 EnvironmentFile=${INSTALL_ROOT}/current/backend/.env
-ExecStart=/usr/bin/node dist/main.js
+ExecStart=${NODE_BIN} dist/main.js
 Restart=on-failure
 RestartSec=5
 KillSignal=SIGINT
