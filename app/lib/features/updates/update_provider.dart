@@ -48,8 +48,15 @@ class UpdateInfo {
   final String? lastError;
   final String? lastAppliedVersion;
 
+  /// UI bundle info (kiosk installs only).
+  final bool uiInstalled;
+  final String? uiArch;
+  final String? uiVersion;
+
   /// Download progress 0-100 (only during downloading).
   final int downloadPercent;
+  /// UI download progress 0-100 (only during ui_downloading).
+  final int uiDownloadPercent;
 
   const UpdateInfo({
     required this.currentVersion,
@@ -60,7 +67,11 @@ class UpdateInfo {
     this.status = UpdateStatus.idle,
     this.lastError,
     this.lastAppliedVersion,
+    this.uiInstalled = false,
+    this.uiArch,
+    this.uiVersion,
     this.downloadPercent = 0,
+    this.uiDownloadPercent = 0,
   });
 
   factory UpdateInfo.fromJson(Map<String, dynamic> j) => UpdateInfo(
@@ -72,11 +83,15 @@ class UpdateInfo {
         status: _parseStatus(j['status'] as String?),
         lastError: j['lastError'] as String?,
         lastAppliedVersion: j['lastAppliedVersion'] as String?,
+        uiInstalled: j['uiInstalled'] as bool? ?? false,
+        uiArch: j['uiArch'] as String?,
+        uiVersion: j['uiVersion'] as String?,
       );
 
   UpdateInfo copyWith({
     UpdateStatus? status,
     int? downloadPercent,
+    int? uiDownloadPercent,
     String? lastError,
   }) =>
       UpdateInfo(
@@ -88,7 +103,11 @@ class UpdateInfo {
         status: status ?? this.status,
         lastError: lastError ?? this.lastError,
         lastAppliedVersion: lastAppliedVersion,
+        uiInstalled: uiInstalled,
+        uiArch: uiArch,
+        uiVersion: uiVersion,
         downloadPercent: downloadPercent ?? this.downloadPercent,
+        uiDownloadPercent: uiDownloadPercent ?? this.uiDownloadPercent,
       );
 }
 
@@ -127,6 +146,13 @@ class UpdateNotifier extends StateNotifier<UpdateInfo> {
           );
         } else if (event == 'applied') {
           state = state.copyWith(status: UpdateStatus.applying);
+        } else if (event == 'ui_downloading') {
+          state = state.copyWith(
+            status: UpdateStatus.applying,
+            uiDownloadPercent: data['percent'] as int? ?? state.uiDownloadPercent,
+          );
+        } else if (event == 'ui_done') {
+          state = state.copyWith(uiDownloadPercent: 100);
         }
       }
     });

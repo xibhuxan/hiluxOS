@@ -26,4 +26,8 @@ export interface UpdateInfoDto {
   status: UpdateStatus;
   lastError: string | null;
   lastAppliedVersion: string | null;
+  /** UI bundle info (only meaningful on the Pi / kiosk install). */
+  uiInstalled: boolean;
+  uiArch: string | null;
+  uiVersion: string | null;
 }

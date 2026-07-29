@@ -47,9 +47,18 @@ class UpdateSection extends ConsumerWidget {
             _infoRow('Última versión', info.latestVersion!),
           if (info.lastAppliedVersion != null)
             _infoRow('Última instalada', info.lastAppliedVersion!),
+          // UI bundle info — only on kiosk installs (Pi / VM with cage).
+          if (info.uiInstalled) ...[
+            const SizedBox(height: 4),
+            _infoRow('Interfaz (UI)', info.uiVersion ?? '—'),
+            if (info.uiArch != null) _infoRow('Arquitectura UI', info.uiArch!),
+          ],
           const SizedBox(height: 8),
           if (info.status == UpdateStatus.downloading)
-            _downloadProgress(info.downloadPercent)
+            _downloadProgress(info.downloadPercent, 'Descargando backend... ')
+          else if (info.status == UpdateStatus.applying &&
+              info.uiDownloadPercent > 0)
+            _downloadProgress(info.uiDownloadPercent, 'Descargando interfaz... ')
           else if (busy)
             _busyLabel(info.status),
           if (info.lastError != null)
@@ -96,7 +105,7 @@ class UpdateSection extends ConsumerWidget {
     );
   }
 
-  Widget _downloadProgress(int percent) {
+  Widget _downloadProgress(int percent, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -112,7 +121,7 @@ class UpdateSection extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Descargando... $percent%',
+            '$label$percent%',
             style: const TextStyle(color: AppColors.muted, fontSize: 12),
           ),
         ],

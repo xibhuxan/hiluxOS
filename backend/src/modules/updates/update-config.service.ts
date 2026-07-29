@@ -22,12 +22,60 @@ export class UpdateConfigService {
   readonly releasesDir: string;
   readonly versionsDir: string;
   readonly currentSymlink: string;
+  readonly uiDir: string;
+  /** GitHub owner/repo for release asset URLs. */
+  readonly repoSlug: string;
 
   constructor(private readonly config: ConfigService) {
     this.installRoot = this.config.get<string>('UPDATE_INSTALL_ROOT', '/opt/hiluxos');
     this.releasesDir = path.join(this.installRoot, 'releases');
     this.versionsDir = path.join(this.installRoot, 'versions');
     this.currentSymlink = path.join(this.installRoot, 'current');
+    this.uiDir = this.config.get<string>('UPDATE_UI_DIR', path.join(this.installRoot, 'ui'));
+    this.repoSlug = this.config.get<string>('UPDATE_REPO_SLUG', 'xibhuxan/hiluxOS');
+  }
+
+  /**
+   * Detect the host CPU architecture and map it to the release-asset suffix
+   * used by the UI bundle naming: x86-64 | arm64 | <raw>.
+   */
+  detectArch(): string {
+    const raw = this.runShell('uname -m') ?? '';
+    switch (raw) {
+      case 'x86_64': return 'x86-64';
+      case 'aarch64': return 'arm64';
+      case 'armv7l': return 'arm';
+      default: return raw;
+    }
+  }
+
+  /**
+   * Get the UI bundle download URL for a given version + arch.
+   * Matches the asset name produced by scripts/release-ui.sh:
+   *   hiluxos-ui-<arch>.tar.gz  attached to the v<version> GitHub release.
+   */
+  getUiBundleUrl(version: string, arch: string): string {
+    return this.config.get<string>(
+      `UPDATE_UI_BUNDLE_URL_${arch}`,
+      `https://github.com/${this.repoSlug}/releases/download/v${version}/hiluxos-ui-${arch}.tar.gz`,
+    );
+  }
+
+  /**
+   * Whether the UI bundle exists on disk (i.e. the UI is actually installed
+   * as a Cage kiosk, not just running as a dev Flutter app).
+   */
+  isUiInstalled(): boolean {
+    return fs.existsSync(path.join(this.uiDir, 'hiluxos'));
+  }
+
+  /**
+   * Restart the UI systemd service so cage picks up the new binary.
+   * Safe to call even if the service doesn't exist (returns false).
+   */
+  restartUiService(): boolean {
+    const out = this.runShell('systemctl restart hiluxos-ui 2>/dev/null', undefined, 15000);
+    return out !== null;
   }
 
   /** Get the current version from VERSION.txt. */

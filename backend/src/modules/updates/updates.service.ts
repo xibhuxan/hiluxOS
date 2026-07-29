@@ -46,6 +46,7 @@ export class UpdatesService {
     const lastLog = await this.prisma.updateLog.findFirst({
       orderBy: { createdAt: 'desc' },
     });
+    const uiInstalled = this.config.isUiInstalled();
     return {
       currentVersion,
       latestVersion: this.latestVersion,
@@ -58,6 +59,12 @@ export class UpdatesService {
       status: this.status,
       lastError: this.lastError,
       lastAppliedVersion: lastLog?.toVersion ?? null,
+      uiInstalled,
+      uiArch: uiInstalled ? this.config.detectArch() : null,
+      // The UI bundle always matches the backend version on a kiosk install
+      // (both come from the same GitHub release), so the UI version is the
+      // current backend version when the bundle is present.
+      uiVersion: uiInstalled ? currentVersion : null,
     };
   }
 
@@ -123,7 +130,23 @@ export class UpdatesService {
       this.swapSymlink(versionDir);
       this.broadcastProgress('applied', { version });
 
-      // 3. Restart
+      // 3. UI update (kiosk installs only): download the matching UI bundle
+      //    from the GitHub release, swap it atomically, restart cage.
+      //    Failures here are non-fatal — the backend is already updated.
+      try {
+        await this.updateUiBundle(version);
+      } catch (uiErr) {
+        this.logger.warn(
+          `UI update skipped: ${(uiErr as Error).message}. Backend update still OK.`,
+        );
+        await this.notifications.send({
+          type: 'warning',
+          title: 'Interfaz no actualizada',
+          message: `Backend OK, pero no se actualizó la UI: ${(uiErr as Error).message}`,
+        });
+      }
+
+      // 4. Restart backend
       this.setStatus('restarting');
       await this.logStatus('restarting', undefined, version);
       this.logger.log(`Update ${version} applied. Scheduling restart...`);
@@ -260,6 +283,57 @@ export class UpdatesService {
     fs.symlinkSync(newTarget, tmp);
     fs.renameSync(tmp, link);
     this.logger.log(`Symlink swapped → ${newTarget}`);
+  }
+
+  /**
+   * Download the UI bundle for `version` matching the host arch, extract it
+   * to a temp dir, atomically swap into the UI dir, then restart cage.
+   * Skipped silently when the UI isn't installed as a kiosk bundle.
+   */
+  private async updateUiBundle(version: string): Promise<void> {
+    if (!this.config.isUiInstalled()) {
+      this.logger.log('UI bundle not installed on disk — skipping UI update.');
+      return;
+    }
+    const arch = this.config.detectArch();
+    if (!arch) throw new Error('Could not detect host architecture (uname -m).');
+
+    const url = this.config.getUiBundleUrl(version, arch);
+    this.broadcastProgress('ui_downloading', { arch, url });
+    this.logger.log(`Downloading UI bundle (${arch}) for v${version}...`);
+    const bundlePath = await this.downloadBundle(url);
+    this.broadcastProgress('ui_downloaded', { path: bundlePath });
+
+    // Extract to a sibling dir, then atomic rename swap.
+    const uiDir = this.config.uiDir;
+    const stagingDir = `${uiDir}.new`;
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    fs.mkdirSync(stagingDir, { recursive: true });
+    this.logger.log(`Extracting UI bundle → ${stagingDir}`);
+    await tar.x({ file: bundlePath, cwd: stagingDir });
+    this.broadcastProgress('ui_extracted', { dir: stagingDir });
+
+    // Atomic-ish swap: rename old ui → ui.old, new → ui, remove old.
+    const backupDir = `${uiDir}.old`;
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    try { fs.renameSync(uiDir, backupDir); } catch { /* may not exist first time */ }
+    fs.renameSync(stagingDir, uiDir);
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    this.logger.log(`UI swapped → ${uiDir}`);
+
+    // Make the binary executable (tar may not preserve the +x bit).
+    const bin = path.join(uiDir, 'hiluxos');
+    if (fs.existsSync(bin)) fs.chmodSync(bin, 0o755);
+
+    // Restart cage so it launches the new binary.
+    this.broadcastProgress('ui_restarting', {});
+    const ok = this.config.restartUiService();
+    if (ok) {
+      this.logger.log('UI service (cage) restarted.');
+      this.broadcastProgress('ui_done', { version, arch });
+    } else {
+      throw new Error('systemctl restart hiluxos-ui failed (service may not exist).');
+    }
   }
 
   private scheduleRestart(delayMs: number): void {

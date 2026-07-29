@@ -448,18 +448,42 @@ El backend tiene un motor de OTA en `backend/src/modules/updates/`.
   versión anterior y reinicia.
 - El estado de cada intento se guarda en la tabla `UpdateLog` de PostgreSQL.
 
-### ⚠ Limitación actual del OTA
+### Actualización de la interfaz (UI bundle)
 
-El OTA **solo actualiza el backend** (descarga master.tar.gz que contiene
-todo el repo, pero solo reconstruye el backend). **La UI no se actualiza
-vía OTA todavía** — el bundle de UI solo se instala en el primer `install-pi.sh`.
+El OTA actualiza **backend + UI** en la misma operación. El flujo de
+`POST /api/updates/apply` es:
 
-Para actualizar la UI hoy:
-- Re-ejecutar `install-pi.sh` (descarga el bundle nuevo del release), o
-- Descargar manualmente el bundle y reemplazar `/opt/hiluxos/ui/`.
+1. **Backend** — download `master.tar.gz` → extract → `npm ci` → `nest build`
+   → `prisma migrate deploy` → swap symlink `current` → (sigue).
+2. **UI** (solo si `/opt/hiluxos/ui/hiluxos` existe, i.e. kiosk real):
+   - Detecta arch con `uname -m` → `x86-64` | `arm64`.
+   - Descarga `hiluxos-ui-<arch>.tar.gz` del release `v<version>` en GitHub.
+   - Extrae a `/opt/hiluxos/ui.new` → swap atómico `ui ↔ ui.new` → `chmod +x`
+     el binario.
+   - `systemctl restart hiluxos-ui` (cage rearranca con el nuevo binario).
+   - Si falla, **no revierte el backend** (ya está OK): solo envía una
+     notificación de aviso y sigue con el restart del backend.
+3. **Restart** — `process.exit(0)` → systemd reinicia `hiluxos-backend`.
 
-**TODO futuro:** extender el OTA para que también descargue el bundle de UI
-del GitHub Release y reinicie `hiluxos-ui.service`.
+Progreso por WebSocket (canal `update`):
+
+| Evento             | Datos                              |
+|--------------------|------------------------------------|
+| `status`           | `{ status }`                       |
+| `downloading`      | `{ received, total, percent }`     |
+| `applied`          | `{ version }`                      |
+| `ui_downloading`   | `{ arch, url }`                    |
+| `ui_downloaded`    | `{ path }`                         |
+| `ui_extracted`     | `{ dir }`                          |
+| `ui_restarting`    | `{}`                               |
+| `ui_done`          | `{ version, arch }`                |
+
+`GET /api/updates` ahora también devuelve `uiInstalled`, `uiArch`,
+`uiVersion` para que el frontend muestre el estado de la interfaz.
+
+> **Nota:** en desarrollo (Fedora, Flutter corriendo con `flutter run` —
+> no como bundle en `/opt/hiluxos/ui/`) el paso de UI se omite
+> silenciosamente. Solo aplica en la Pi / VM con cage kiosk.
 ---
 
 ## 10. Layout en disco del dispositivo
