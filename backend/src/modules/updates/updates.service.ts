@@ -112,12 +112,14 @@ export class UpdatesService {
       const bundlePath = await this.downloadBundle(this.config.getTarballUrl());
       this.broadcastProgress('downloaded', { path: bundlePath });
 
-      // 2. Apply: extract → npm ci → prisma migrate → swap symlink
+      // 2. Apply: extract → npm ci → build → prisma migrate → swap symlink
       this.setStatus('applying');
       await this.logStatus('applying');
       const versionDir = await this.extractBundle(bundlePath, version);
       await this.installDeps(versionDir);
+      await this.buildBackend(versionDir);
       await this.runMigrations(versionDir);
+      await this.pruneDevDeps(versionDir);
       this.swapSymlink(versionDir);
       this.broadcastProgress('applied', { version });
 
@@ -229,9 +231,20 @@ export class UpdatesService {
   }
 
   private installDeps(versionDir: string): void {
-    this.logger.log('Running npm ci...');
-    const out = this.config.runShell('npm ci --omit=dev', versionDir, 180000);
+    this.logger.log('Running npm ci (full, including devDeps for build)...');
+    const out = this.config.runShell('npm ci --no-audit --no-fund', versionDir, 180000);
     if (out === null) throw new Error('npm ci failed.');
+  }
+
+  private buildBackend(versionDir: string): void {
+    this.logger.log('Building backend (nest build)...');
+    const out = this.config.runShell('npm run build', versionDir, 120000);
+    if (out === null) throw new Error('npm run build failed.');
+  }
+
+  private pruneDevDeps(versionDir: string): void {
+    this.logger.log('Pruning dev dependencies...');
+    this.config.runShell('npm prune --omit=dev', versionDir, 60000);
   }
 
   private runMigrations(versionDir: string): void {
