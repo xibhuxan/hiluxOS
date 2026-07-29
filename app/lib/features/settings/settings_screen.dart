@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'settings_provider.dart';
 import '../../core/theme/colors.dart';
+import '../updates/widgets/update_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -27,53 +28,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       body: state.loading && state.values.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
-                  child: Text('Ajustes',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: const Text('Ajustes',
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                  ),
                 ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                // Update section (always visible at the top).
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: const UpdateSection(),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverList.separated(
                     itemCount: keys.length,
-              separatorBuilder: (_, __) => const Divider(color: AppColors.surfaceVariant),
-              itemBuilder: (context, i) {
-                final key = keys[i];
-                final value = state.values[key]!;
-                if (_isBool(value)) {
-                  return SwitchListTile(
-                    title: Text(_pretty(key)),
-                    value: value == 'true',
-                    onChanged: (v) =>
-                        ref.read(settingsProvider.notifier).update(key, v.toString()),
-                  );
-                }
-                final n = int.tryParse(value);
-                if (n != null && (key == 'brightness' || key == 'volume')) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(_pretty(key), style: const TextStyle(color: AppColors.onBackground)),
-                      Slider(
-                        min: 0,
-                        max: 100,
-                        divisions: 100,
-                        value: n.toDouble().clamp(0, 100),
-                        label: '$n',
+                    separatorBuilder: (_, __) => const Divider(color: AppColors.surfaceVariant),
+                    itemBuilder: (context, i) {
+                    final key = keys[i];
+                    final value = state.values[key]!;
+                    if (_isBool(value)) {
+                      return SwitchListTile(
+                        title: Text(_pretty(key)),
+                        value: value == 'true',
                         onChanged: (v) =>
-                            ref.read(settingsProvider.notifier).update(key, v.round().toString()),
-                      ),
-                    ],
-                  );
-                }
-                return ListTile(
-                  title: Text(_pretty(key)),
-                  trailing: Text(value, style: const TextStyle(color: AppColors.muted)),
-                );
-              },
+                            ref.read(settingsProvider.notifier).update(key, v.toString()),
+                      );
+                    }
+                    final n = int.tryParse(value);
+                    if (n != null && (key == 'brightness' || key == 'volume')) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_pretty(key), style: const TextStyle(color: AppColors.onBackground)),
+                          Slider(
+                            min: 0,
+                            max: 100,
+                            divisions: 100,
+                            value: n.toDouble().clamp(0, 100),
+                            label: '$n',
+                            onChanged: (v) =>
+                                ref.read(settingsProvider.notifier).update(key, v.round().toString()),
+                          ),
+                        ],
+                      );
+                    }
+                    return ListTile(
+                      title: Text(_pretty(key)),
+                      trailing: Text(value, style: const TextStyle(color: AppColors.muted)),
+                    );
+                  },
                   ),
                 ),
               ],

@@ -91,6 +91,23 @@ model Notification {
   @@map("notifications")
 }
 
+/// Append-only log of OTA update attempts (check / download / apply / rollback).
+/// status: "idle" | "checking" | "downloading" | "verifying" | "applying" | "restarting" | "done" | "failed" | "rolled_back"
+model UpdateLog {
+  id           BigInt   @id @default(autoincrement())
+  status       String   @default("idle")
+  fromVersion  String?
+  toVersion    String?
+  bundleUrl    String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("update_log")
+}
+
 /// A pending action / reminder shown on the home "Pendientes" card.
 /// kind: "date" | "km" | "version" | "none". value holds the human detail.
 model Task {

@@ -81,3 +81,8 @@ Thumbs.db
 *.bak
 *.swp
 *.swo
+
+# --- OTA update signing keys (NEVER commit private keys!) ---
+scripts/update-priv.key
+scripts/update-pub.key
+dist/
