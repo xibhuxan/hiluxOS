@@ -110,14 +110,16 @@ rm -rf "$TMP_DIR"
 # ── 6. Backend: deps, build, prune ────────────────────────────────────
 log "Installing backend dependencies (this takes a few minutes on a Pi)..."
 cd "$VERSION_DIR/backend"
-npm ci --no-audit --no-fund 2>&1 | tail -1
+npm ci --no-audit --no-fund
+ok "Dependencies installed"
+
 log "Building backend (TypeScript → JavaScript)..."
-npm run build 2>&1 | tail -1
+npm run build
+ok "Backend compiled → dist/main.js"
+
 log "Generating Prisma client..."
-npx prisma generate 2>&1 | tail -1
-log "Pruning dev dependencies..."
-npm prune --omit=dev 2>&1 | tail -1
-ok "Backend built"
+npx prisma generate
+ok "Prisma client generated"
 
 # ── 7. .env file ──────────────────────────────────────────────────────
 if [[ ! -f "$VERSION_DIR/backend/.env" ]]; then
@@ -135,8 +137,15 @@ fi
 
 # ── 8. Database migrations ────────────────────────────────────────────
 log "Running database migrations..."
-npx prisma migrate deploy 2>&1 | tail -3
+npx prisma migrate deploy
 ok "Database migrated"
+
+# ── 8b. Prune dev dependencies (MUST be after build + prisma) ─────────
+# prisma CLI is a devDependency, so we can only prune after migrate.
+# The compiled dist/ + @prisma/client (runtime) are all we need to run.
+log "Pruning dev dependencies..."
+npm prune --omit=dev
+ok "Dev dependencies pruned"
 
 # ── 9. Symlink + ownership ────────────────────────────────────────────
 ln -sfn "$VERSION_DIR" "$INSTALL_ROOT/current"
