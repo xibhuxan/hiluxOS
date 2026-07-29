@@ -58,9 +58,27 @@ log "Detected: $PRETTY_NAME"
 # ── 1. System packages ────────────────────────────────────────────────
 log "Updating apt and installing base packages..."
 apt-get update -qq
+
+# Detect architecture for the UI bundle naming.
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in
+  x86_64)  UI_ARCH="x86-64" ;;
+  aarch64) UI_ARCH="arm64" ;;
+  *)       UI_ARCH="$HOST_ARCH" ;;
+esac
+
 apt-get install -y -qq curl git ca-certificates gnupg build-essential \
-  postgresql postgresql-contrib >/dev/null
-ok "Base packages installed"
+  postgresql postgresql-contrib \
+  \
+  cage \
+  \
+  libgtk-3-0 libglib2.0-0 libpango-1.0-0 libcairo2 libharfbuzz0b \
+  libwayland-client0 libwayland-egl1 libegl1 libgl1 \
+  libblkid1 liblzma5 libpulse0 \
+  libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  fonts-noto-core >/dev/null
+ok "Base packages installed (incl. cage + Flutter runtime libs)"
 
 # ── 2. Node.js 22 LTS (via NodeSource) ────────────────────────────────
 if ! command -v node &>/dev/null || [[ "$(node -v 2>/dev/null | cut -dv -f2 | cut -d. -f1)" -lt "$NODE_MAJOR" ]]; then
@@ -195,7 +213,76 @@ for i in $(seq 1 15); do
   sleep 2
 done
 
-# ── 12. Cleanup ───────────────────────────────────────────────────────
+# ── 12. UI: download Flutter bundle from GitHub Release ───────────────
+UI_BUNDLE_NAME="hiluxos-ui-${UI_ARCH}.tar.gz"
+UI_DIR="$INSTALL_ROOT/ui"
+UI_BUNDLE_URL="https://github.com/xibhuxan/hiluxOS/releases/download/v${VERSION}/${UI_BUNDLE_NAME}"
+
+log "Downloading UI bundle ($UI_ARCH) from GitHub Release v$VERSION..."
+mkdir -p "$UI_DIR"
+if curl -fsSL "$UI_BUNDLE_URL" -o "/tmp/$UI_BUNDLE_NAME"; then
+  ok "UI bundle downloaded"
+  tar xzf "/tmp/$UI_BUNDLE_NAME" -C "$UI_DIR" --strip-components=1
+  rm -f "/tmp/$UI_BUNDLE_NAME"
+  chmod +x "$UI_DIR/hiluxos"
+  chown -R "$SERVICE_USER":"$SERVICE_USER" "$UI_DIR"
+
+  # Verify the binary has all its shared libraries.
+  if ldd "$UI_DIR/hiluxos" 2>/dev/null | grep -q "not found"; then
+    log "⚠ UI binary is missing some shared libraries:"
+    ldd "$UI_DIR/hiluxos" 2>/dev/null | grep "not found"
+    die "Install the missing libraries and re-run, or rebuild the bundle for this OS/arch."
+  fi
+  ok "UI binary dependencies satisfied"
+else
+  log "⚠ UI bundle for $UI_ARCH not found at:"
+  log "  $UI_BUNDLE_URL"
+  log "  The backend is installed and running, but the UI (cage + Flutter) was skipped."
+  log "  Build and upload the bundle with: scripts/release-ui.sh"
+  log "  Continuing without UI service..."
+fi
+
+# ── 13. UI systemd service (cage kiosk) ───────────────────────────────
+if [[ -x "$UI_DIR/hiluxos" ]]; then
+  log "Installing UI systemd service (cage kiosk)..."
+
+  # Cage runs as root to access /dev/dri directly (no logind session on a
+  # headless box). It creates its own Wayland compositor and launches the
+  # Flutter app fullscreen on the physical display (HDMI / DSI).
+  cat > /etc/systemd/system/hiluxos-ui.service <<EOF
+[Unit]
+Description=hiluxOS UI (Cage Wayland kiosk + Flutter app)
+After=hiluxos-backend.service
+Wants=hiluxos-backend.service
+
+[Service]
+Type=simple
+User=root
+Environment=XDG_RUNTIME_DIR=/run/user/0
+Environment=HOME=/root
+# WLR_RENDERER=pixman = software rendering (works without GPU/3D accel,
+# e.g. VirtualBox). On the Pi the VC4/V3D GPU works, so this is harmless
+# to set everywhere — wlroots falls back to it only if EGL fails.
+Environment=WLR_RENDERER=pixman
+ExecStart=/usr/bin/cage -- ${UI_DIR}/hiluxos
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Ensure the runtime dir cage needs exists.
+  mkdir -p /run/user/0
+  chmod 700 /run/user/0
+
+  systemctl daemon-reload
+  systemctl enable hiluxos-ui
+  systemctl start hiluxos-ui
+  ok "UI service started (cage + Flutter on the physical display)"
+fi
+
+# ── 14. Cleanup ───────────────────────────────────────────────────────
 apt-get clean
 
 echo ""
@@ -204,10 +291,17 @@ echo "  hiluxOS $VERSION installed successfully!"
 echo "═══════════════════════════════════════════════════════════════\033[0m"
 echo ""
 echo "  Backend:    http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost'):3000"
-echo "  Service:    systemctl status hiluxos-backend"
+echo "  Services:   systemctl status hiluxos-backend hiluxos-ui"
 echo "  Logs:       journalctl -u hiluxos-backend -f"
+echo "              journalctl -u hiluxos-ui -f"
 echo "  Install:    $INSTALL_ROOT/current (v$VERSION)"
 echo "  Install log: $LOG_FILE"
+echo ""
+if [[ -x "$UI_DIR/hiluxos" ]]; then
+echo "  UI:         Cage Wayland kiosk running on the physical display"
+else
+echo "  UI:         Not installed (no bundle for $UI_ARCH in the release)"
+fi
 echo ""
 echo "  Updates will happen automatically from the app (Settings → Updates)."
 echo ""
