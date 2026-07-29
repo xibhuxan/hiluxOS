@@ -16,7 +16,10 @@ class WebSocketService {
   bool _disposed = false;
 
   /// Stream of decoded server events: `{'event': '...', 'data': ...}`.
-  Stream<Map<String, dynamic>> get events => _controller!.stream;
+  Stream<Map<String, dynamic>> get events {
+    _controller ??= StreamController<Map<String, dynamic>>.broadcast();
+    return _controller!.stream;
+  }
 
   void connect() {
     _controller ??= StreamController<Map<String, dynamic>>.broadcast();
@@ -67,6 +70,7 @@ class WebSocketService {
 
 final webSocketServiceProvider = Provider<WebSocketService>((ref) {
   final svc = WebSocketService(url: AppConfig.wsUrl);
+  svc.connect();
   ref.onDispose(svc.dispose);
   return svc;
 });

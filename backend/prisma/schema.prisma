@@ -74,6 +74,23 @@ model EventLog {
   @@map("event_log")
 }
 
+/// A notification pushed by any module via NotificationsService.
+/// type: "info" | "success" | "warning" | "error"
+/// action: optional JSON with { screen: string, payload?: any } for navigation.
+model Notification {
+  id        BigInt   @id @default(autoincrement())
+  type      String   @default("info")
+  title     String
+  message   String?
+  action    Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([read])
+  @@map("notifications")
+}
+
 /// A pending action / reminder shown on the home "Pendientes" card.
 /// kind: "date" | "km" | "version" | "none". value holds the human detail.
 model Task {

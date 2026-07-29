@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../features/notifications/notification_provider.dart';
 import '../../features/system_info/controls_provider.dart';
 import '../../features/system_info/system_polling_provider.dart';
 
@@ -12,11 +13,13 @@ class StatusPanel extends ConsumerWidget {
     required this.onApps,
     required this.onHome,
     required this.onQuickPanel,
+    required this.onNotifications,
   });
 
   final VoidCallback onApps;
   final VoidCallback onHome;
   final VoidCallback onQuickPanel;
+  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,6 +55,14 @@ class StatusPanel extends ConsumerWidget {
           ),
           const Spacer(),
           // Actions
+          // Notification bell with badge
+          Consumer(
+            builder: (context, ref, _) {
+              final count = ref.watch(notificationProvider).unreadCount;
+              return _NotificationBell(count: count, onTap: onNotifications);
+            },
+          ),
+          const SizedBox(width: 6),
           _PanelButton(icon: Icons.home_outlined, onTap: onHome),
           const SizedBox(width: 8),
           _AppsButton(onTap: onApps),
@@ -111,6 +122,51 @@ class _AppsButton extends StatelessWidget {
                       color: Color(0xFF0d1117),
                       fontSize: 14,
                       fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bell icon with unread badge.
+class _NotificationBell extends StatelessWidget {
+  const _NotificationBell({required this.count, required this.onTap});
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceVariant.withValues(alpha: 0.5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Stack(
+            children: [
+              const Icon(Icons.notifications_outlined, size: 20, color: AppColors.onBackground),
+              if (count > 0)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

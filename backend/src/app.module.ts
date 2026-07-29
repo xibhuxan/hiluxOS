@@ -8,6 +8,7 @@ import { RadioModule } from './modules/radio/radio.module';
 import { EventsModule } from './modules/events/events.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { EventLogModule } from './modules/event-log/event-log.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { EventLogModule } from './modules/event-log/event-log.module';
     EventsModule,
     TasksModule,
     EventLogModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}
