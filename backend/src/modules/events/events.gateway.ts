@@ -1,43 +1,62 @@
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  SubscribeMessage,
-  MessageBody,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import * as WebSocket from 'ws';
 
 /**
- * Replaces the Python EventBus. Flutter connects to /events and listens for
- * real-time events (vehicle signals, radio status, gpio changes, etc.).
+ * Plain-WebSocket event bus (RFC 6455), compatible with Flutter's
+ * `web_socket_channel` client. Replaces the Python EventBus.
  *
- * The backend can push events by calling `eventsGateway.broadcast('event', data)`.
+ * Flutter connects to ws://<host>:3000/events and receives JSON messages
+ * of the form `{"event": "...", "data": ...}`.
+ *
+ * The backend pushes events by calling `eventsGateway.broadcast('event', data)`.
+ *
+ * NOTE: This is a bare `ws` server, NOT a NestJS @WebSocketGateway. Socket.IO's
+ * Engine.IO handshake protocol is incompatible with plain WebSocket clients, so
+ * we use `ws` directly and attach it to the HTTP server in main.ts.
  */
-@WebSocketGateway({ namespace: '/events', cors: true })
-export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class EventsGateway {
   private readonly logger = new Logger(EventsGateway.name);
+  private wss: WebSocket.WebSocketServer | null = null;
+  private clients = new Set<WebSocket.WebSocket>();
 
-  @WebSocketServer()
-  server!: Server;
+  /** Attach the WebSocket server to the given HTTP server, on /events. */
+  attach(server: import('http').Server | import('https').Server): void {
+    this.wss = new WebSocket.WebSocketServer({ server, path: '/events' });
+    this.wss.on('connection', (ws: WebSocket.WebSocket) => {
+      this.clients.add(ws);
+      this.logger.log(`Client connected (${this.clients.size} total)`);
 
-  handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+      ws.on('message', (raw: WebSocket.RawData) => {
+        try {
+          const msg = JSON.parse(raw.toString());
+          // Simple ping/pong heartbeat.
+          if (msg?.event === 'ping') {
+            ws.send(JSON.stringify({ event: 'pong', data: msg.data }));
+          }
+        } catch {
+          // ignore malformed frames
+        }
+      });
+
+      ws.on('close', () => {
+        this.clients.delete(ws);
+        this.logger.log(`Client disconnected (${this.clients.size} total)`);
+      });
+
+      ws.on('error', () => {
+        this.clients.delete(ws);
+      });
+    });
+    this.logger.log('WebSocket server listening on /events');
   }
 
-  handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
-  }
-
-  /** Echo + heartbeat: client can ping to verify the connection is alive. */
-  @SubscribeMessage('ping')
-  onPing(_client: Socket, @MessageBody() data: unknown) {
-    return { event: 'pong', data };
-  }
-
-  /** Broadcast an event to every connected client. */
-  broadcast(event: string, data: unknown) {
-    this.server.emit(event, data);
+  /** Broadcast a JSON event to every connected client. */
+  broadcast(event: string, data: unknown): void {
+    const payload = JSON.stringify({ event, data });
+    for (const ws of this.clients) {
+      if (ws.readyState === WebSocket.WebSocket.OPEN) {
+        ws.send(payload);
+      }
+    }
   }
 }
