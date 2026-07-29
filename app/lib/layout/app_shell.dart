@@ -87,28 +87,28 @@ class AppShellState extends ConsumerState<AppShell> {
               ),
             ),
           ),
-          // Notification panel overlay (slides from top, above content)
-          NotificationPanel(
-            key: _notificationPanelKey,
-            onOpenChanged: _onNotifChanged,
-          ),
-          // Quick Panel overlay
-          QuickPanel(
-            key: _quickPanelKey,
-            onOpenChanged: _onQuickChanged,
-          ),
-          // Dismiss layer for quick panel (below notification dismiss)
+          // Dismiss layer for quick panel (below quick panel so panel is tappable)
           if (_quickOpen)
             _QuickPanelDismiss(
               shell: this,
               onTap: closeQuickPanel,
             ),
-          // Dismiss layer for notification panel (topmost, below toasts)
+          // Quick Panel overlay (above its dismiss layer)
+          QuickPanel(
+            key: _quickPanelKey,
+            onOpenChanged: _onQuickChanged,
+          ),
+          // Dismiss layer for notification panel (below notification panel)
           if (_notifOpen)
             _NotificationDismiss(
               shell: this,
               onTap: closeNotificationPanel,
             ),
+          // Notification panel overlay (above its dismiss layer)
+          NotificationPanel(
+            key: _notificationPanelKey,
+            onOpenChanged: _onNotifChanged,
+          ),
           // Notification toasts (top of the screen)
           const Positioned(
             top: 0,
@@ -130,15 +130,13 @@ class _QuickPanelDismiss extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: false,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: Colors.black.withValues(alpha: 0.2),
-        ),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black.withValues(alpha: 0.2),
       ),
     );
   }
@@ -152,16 +150,13 @@ class _NotificationDismiss extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: false,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.translucent,
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          color: Colors.black.withValues(alpha: 0.2),
-        ),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: Colors.black.withValues(alpha: 0.2),
       ),
     );
   }
