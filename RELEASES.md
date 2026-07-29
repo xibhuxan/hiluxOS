@@ -524,7 +524,10 @@ Type=simple
 User=root
 Environment=XDG_RUNTIME_DIR=/run/user/0
 Environment=HOME=/root
-Environment=WLR_RENDERER=pixman      # software rendering (fallback seguro)
+Environment=LIBSEAT_BACKEND=seatd      # sin sesión logind → backend seatd
+Environment=WLR_RENDERER=pixman        # software rendering (fallback seguro)
+Environment=XCURSOR_THEME=Adwaita      # tema de cursor (pointer visible)
+Environment=XCURSOR_SIZE=24
 ExecStart=/usr/bin/cage -- /opt/hiluxos/ui/hiluxos
 Restart=on-failure
 RestartSec=5
@@ -557,10 +560,15 @@ journalctl -u hiluxos-ui -e
 ```
 
 Errores comunes:
-- `Could not get primary session for user` — normal en headless, cage sigue.
+- `Could not get primary session for user` — falta el backend seatd. El
+  instalador instala y arranca `seatd` y pone `LIBSEAT_BACKEND=seatd` en el
+  servicio. Si aparece, verifica `systemctl is-active seatd` y que el
+  servicio tiene `Environment=LIBSEAT_BACKEND=seatd`.
 - `Failed to parse EDID` — normal en VirtualBox, ignóralo.
 - `cannot open display` — cage no encuentra /dev/dri. Verifica que el
   dispositivo de display está conectado (HDMI/DSI).
+- `Unable to load from the cursor theme` — falta `adwaita-icon-theme` o
+  `XCURSOR_THEME` no está puesto. El puntero funciona aunque no se vea.
 
 ### El binario de UI falta libs
 

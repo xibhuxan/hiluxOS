@@ -70,15 +70,23 @@ esac
 apt-get install -y -qq curl git ca-certificates gnupg build-essential \
   postgresql postgresql-contrib \
   \
-  cage \
+  cage seatd \
   \
   libgtk-3-0 libglib2.0-0 libpango-1.0-0 libcairo2 libharfbuzz0b \
   libwayland-client0 libwayland-egl1 libegl1 libgl1 \
   libblkid1 liblzma5 libpulse0 \
   libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  fonts-noto-core >/dev/null
-ok "Base packages installed (incl. cage + Flutter runtime libs)"
+  fonts-noto-core adwaita-icon-theme >/dev/null
+ok "Base packages installed (incl. cage + seatd + Flutter runtime libs)"
+
+# ── seatd: enable the seat daemon so wlroots can open input devices ────
+# Without a real logind session (headless systemd service), libseat falls
+# back to the seatd backend. The daemon must be running, and root should be
+# able to access /dev/input/* directly (group 'input').
+systemctl enable --now seatd
+usermod -aG input root || true
+ok "seatd enabled + root in input group (pointer/touch will work)"
 
 # ── 2. Node.js 22 LTS (via NodeSource) ────────────────────────────────
 if ! command -v node &>/dev/null || [[ "$(node -v 2>/dev/null | cut -dv -f2 | cut -d. -f1)" -lt "$NODE_MAJOR" ]]; then
@@ -260,10 +268,17 @@ Type=simple
 User=root
 Environment=XDG_RUNTIME_DIR=/run/user/0
 Environment=HOME=/root
+# seatd backend: cage runs as a systemd service (no logind session), so
+# libseat must talk to the seatd daemon instead of logind. Without this,
+# wlroots cannot open input devices (no pointer/touch/keyboard).
+Environment=LIBSEAT_BACKEND=seatd
 # WLR_RENDERER=pixman = software rendering (works without GPU/3D accel,
 # e.g. VirtualBox). On the Pi the VC4/V3D GPU works, so this is harmless
 # to set everywhere — wlroots falls back to it only if EGL fails.
 Environment=WLR_RENDERER=pixman
+# Cursor theme (adwaita-icon-theme) so the pointer is visible.
+Environment=XCURSOR_THEME=Adwaita
+Environment=XCURSOR_SIZE=24
 ExecStart=/usr/bin/cage -- ${UI_DIR}/hiluxos
 Restart=on-failure
 RestartSec=5
