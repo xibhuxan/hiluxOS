@@ -65,28 +65,23 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
     } catch (_) {}
   }
 
-  /// Mark a notification as read locally + backend.
+  /// Mark a notification as read → deletes it from backend + list.
   Future<void> markRead(String id) async {
     try {
       await _api.put('/notifications/$id/read');
     } catch (_) {}
     state = NotificationState(
-      items: state.items
-          .map((n) => n.id == id ? n.copyWith(read: true) : n)
-          .toList(),
+      items: state.items.where((n) => n.id != id).toList(),
       toasts: state.toasts.where((t) => t.id != id).toList(),
     );
   }
 
-  /// Mark all as read.
+  /// Mark all as read → deletes all from backend + clears list.
   Future<void> markAllRead() async {
     try {
       await _api.put('/notifications/read-all');
     } catch (_) {}
-    state = NotificationState(
-      items: state.items.map((n) => n.copyWith(read: true)).toList(),
-      toasts: [],
-    );
+    state = NotificationState(items: []);
   }
 
   /// Dismiss a toast without marking read.

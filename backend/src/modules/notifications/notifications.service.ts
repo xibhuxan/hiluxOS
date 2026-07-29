@@ -64,24 +64,20 @@ export class NotificationsService {
     return items.map(this.mapRecord);
   }
 
-  /** Mark a single notification as read. */
-  async markRead(id: bigint): Promise<NotificationResponseDto | null> {
+  /** Delete a notification (marking it read = removing it from the list). */
+  async markRead(id: bigint): Promise<boolean> {
     try {
-      const record = await this.prisma.notification.update({
-        where: { id },
-        data: { read: true },
-      });
-      return this.mapRecord(record);
+      await this.prisma.notification.delete({ where: { id } });
+      return true;
     } catch {
-      return null;
+      return false;
     }
   }
 
-  /** Mark all notifications as read. */
+  /** Delete all unread notifications (clear the list). */
   async markAllRead(): Promise<number> {
-    const result = await this.prisma.notification.updateMany({
+    const result = await this.prisma.notification.deleteMany({
       where: { read: false },
-      data: { read: true },
     });
     return result.count;
   }

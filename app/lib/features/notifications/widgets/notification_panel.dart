@@ -129,7 +129,7 @@ class NotificationPanelState extends ConsumerState<NotificationPanel>
             onPressed: () =>
                 ref.read(notificationProvider.notifier).markAllRead(),
             child: const Text(
-              'Marcar todo leído',
+              'Limpiar todo',
               style: TextStyle(color: AppColors.primary, fontSize: 12),
             ),
           ),
@@ -179,12 +179,9 @@ class _NotificationItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final n = notification;
-    final unread = !n.read;
 
     return Material(
-      color: unread
-          ? AppColors.surfaceVariant.withValues(alpha: 0.4)
-          : Colors.transparent,
+      color: AppColors.surfaceVariant.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
           ref.read(notificationProvider.notifier).markRead(n.id);
@@ -194,20 +191,6 @@ class _NotificationItem extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (unread)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, right: 10),
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(width: 18),
               Icon(_icon(n.type), color: _iconColor(n.type), size: 18),
               const SizedBox(width: 12),
               Expanded(
@@ -216,9 +199,9 @@ class _NotificationItem extends ConsumerWidget {
                   children: [
                     Text(
                       n.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: unread ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
                     ),
