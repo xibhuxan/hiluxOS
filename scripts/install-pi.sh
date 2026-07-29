@@ -21,6 +21,7 @@ DB_PASS="hiluxos_dev"
 DB_NAME="hiluxos"
 NODE_MAJOR=22
 SERVICE_USER="hiluxos"
+LOG_FILE="/var/log/hiluxos-install.log"
 # ──────────────────────────────────────────────────────────────────────
 
 log()  { echo -e "\033[1;34m==>\033[0m $*"; }
@@ -29,6 +30,26 @@ die()  { echo -e "\033[1;31m  ✗\033[0m $*" >&2; exit 1; }
 
 # Must be root
 [[ "$(id -u)" -eq 0 ]] || die "Run with sudo: sudo bash scripts/install-pi.sh"
+
+# ── Logging: tee everything to /var/log/hiluxos-install.log ───────────
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+chmod 640 "$LOG_FILE"
+
+# Write a banner header so multiple runs are easy to tell apart.
+{
+  echo ""
+  echo "================================================================"
+  echo " hiluxOS install — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  echo " Invoked as: $0 $*"
+  echo "================================================================"
+} >> "$LOG_FILE"
+
+# Redirect stdout+stderr through tee so the user sees output on the
+# terminal AND it gets persisted to the log file for debugging.
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log "Logging to: $LOG_FILE"
 
 # Detect Debian version
 . /etc/os-release 2>/dev/null || die "Not a Debian-based system"
@@ -177,6 +198,10 @@ echo "  Backend:    http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 
 echo "  Service:    systemctl status hiluxos-backend"
 echo "  Logs:       journalctl -u hiluxos-backend -f"
 echo "  Install:    $INSTALL_ROOT/current (v$VERSION)"
+echo "  Install log: $LOG_FILE"
 echo ""
 echo "  Updates will happen automatically from the app (Settings → Updates)."
 echo ""
+
+# Make sure the log is flushed before we exit.
+sync "$LOG_FILE" 2>/dev/null || true
