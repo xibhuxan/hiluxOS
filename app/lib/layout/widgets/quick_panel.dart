@@ -7,7 +7,10 @@ import '../../features/system_info/quick_panel_provider.dart';
 /// Quick Panel overlay: slides down from the top with WiFi/BT toggles,
 /// volume/brightness sliders, and status indicators.
 class QuickPanel extends ConsumerStatefulWidget {
-  const QuickPanel({super.key});
+  const QuickPanel({super.key, this.onOpenChanged});
+
+  /// Called with `true` when the panel opens, `false` when it closes.
+  final void Function(bool open)? onOpenChanged;
 
   @override
   ConsumerState<QuickPanel> createState() => QuickPanelState();
@@ -26,6 +29,10 @@ class QuickPanelState extends ConsumerState<QuickPanel>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) widget.onOpenChanged?.call(true);
+      if (status == AnimationStatus.dismissed) widget.onOpenChanged?.call(false);
+    });
     _slide = Tween<Offset>(
       begin: const Offset(0, -1),
       end: Offset.zero,

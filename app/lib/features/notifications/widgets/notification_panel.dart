@@ -6,7 +6,10 @@ import '../notification_provider.dart';
 /// Overlay panel that shows the notification history.
 /// Opens from the top of the screen, triggered by the bell icon.
 class NotificationPanel extends ConsumerStatefulWidget {
-  const NotificationPanel({super.key});
+  const NotificationPanel({super.key, this.onOpenChanged});
+
+  /// Called with `true` when the panel opens, `false` when it closes.
+  final void Function(bool open)? onOpenChanged;
 
   @override
   ConsumerState<NotificationPanel> createState() => NotificationPanelState();
@@ -42,12 +45,18 @@ class NotificationPanelState extends ConsumerState<NotificationPanel>
     if (!_open) {
       setState(() => _open = true);
       _controller.forward();
+      widget.onOpenChanged?.call(true);
     }
   }
 
   void close() {
     if (_open) {
-      _controller.reverse().then((_) => setState(() => _open = false));
+      _controller.reverse().then((_) {
+        if (mounted) {
+          setState(() => _open = false);
+          widget.onOpenChanged?.call(false);
+        }
+      });
     }
   }
 

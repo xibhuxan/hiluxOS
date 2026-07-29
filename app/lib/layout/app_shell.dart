@@ -23,6 +23,16 @@ class AppShellState extends ConsumerState<AppShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _quickPanelKey = GlobalKey<QuickPanelState>();
   final _notificationPanelKey = GlobalKey<NotificationPanelState>();
+  bool _notifOpen = false;
+  bool _quickOpen = false;
+
+  void _onNotifChanged(bool open) {
+    if (_notifOpen != open) setState(() => _notifOpen = open);
+  }
+
+  void _onQuickChanged(bool open) {
+    if (_quickOpen != open) setState(() => _quickOpen = open);
+  }
 
   void toggleQuickPanel() {
     final state = _quickPanelKey.currentState;
@@ -78,13 +88,27 @@ class AppShellState extends ConsumerState<AppShell> {
             ),
           ),
           // Notification panel overlay (slides from top, above content)
-          NotificationPanel(key: _notificationPanelKey),
+          NotificationPanel(
+            key: _notificationPanelKey,
+            onOpenChanged: _onNotifChanged,
+          ),
           // Quick Panel overlay
-          QuickPanel(key: _quickPanelKey),
-          // Dismiss layer for notification panel
-          _NotificationDismiss(shell: this),
-          // Dismiss layer for quick panel
-          _QuickPanelDismiss(shell: this),
+          QuickPanel(
+            key: _quickPanelKey,
+            onOpenChanged: _onQuickChanged,
+          ),
+          // Dismiss layer for quick panel (below notification dismiss)
+          if (_quickOpen)
+            _QuickPanelDismiss(
+              shell: this,
+              onTap: closeQuickPanel,
+            ),
+          // Dismiss layer for notification panel (topmost, below toasts)
+          if (_notifOpen)
+            _NotificationDismiss(
+              shell: this,
+              onTap: closeNotificationPanel,
+            ),
           // Notification toasts (top of the screen)
           const Positioned(
             top: 0,
@@ -100,21 +124,20 @@ class AppShellState extends ConsumerState<AppShell> {
 
 /// Transparent overlay that closes the Quick Panel when tapped.
 class _QuickPanelDismiss extends StatelessWidget {
-  const _QuickPanelDismiss({required this.shell});
+  const _QuickPanelDismiss({required this.shell, required this.onTap});
   final AppShellState shell;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final qp = shell._quickPanelKey.currentState;
-    final visible = qp != null && (qp.isOpen || qp.isAnimating);
     return IgnorePointer(
-      ignoring: !visible,
+      ignoring: false,
       child: GestureDetector(
-        onTap: shell.closeQuickPanel,
+        onTap: onTap,
         child: Container(
           width: double.infinity,
           height: double.infinity,
-          color: visible ? Colors.black.withValues(alpha: 0.2) : Colors.transparent,
+          color: Colors.black.withValues(alpha: 0.2),
         ),
       ),
     );
@@ -123,21 +146,21 @@ class _QuickPanelDismiss extends StatelessWidget {
 
 /// Transparent overlay that closes the Notification Panel when tapped.
 class _NotificationDismiss extends StatelessWidget {
-  const _NotificationDismiss({required this.shell});
+  const _NotificationDismiss({required this.shell, required this.onTap});
   final AppShellState shell;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final np = shell._notificationPanelKey.currentState;
-    final visible = np != null && (np.isOpen || np.isAnimating);
     return IgnorePointer(
-      ignoring: !visible,
+      ignoring: false,
       child: GestureDetector(
-        onTap: shell.closeNotificationPanel,
+        onTap: onTap,
+        behavior: HitTestBehavior.translucent,
         child: Container(
           width: double.infinity,
           height: double.infinity,
-          color: visible ? Colors.black.withValues(alpha: 0.2) : Colors.transparent,
+          color: Colors.black.withValues(alpha: 0.2),
         ),
       ),
     );
