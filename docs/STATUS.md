@@ -1,15 +1,15 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-08-11 (Fase 1 — tests unitarios backend + widget tests Flutter)
+Última actualización: 2026-08-11 (Fase 1 — tests unitarios + e2e backend, widget tests Flutter)
 
 ## Stack y ramas
 
 - **Stack**: NestJS 11 + Prisma 6 + PostgreSQL 17 (backend, host) · Flutter stable (app, host) · PostgreSQL en Docker.
 - **Versión**: `0.1.0` (`VERSION.txt`).
-- **Ramas** (todas sincronizadas con `origin`, HEAD `9efef03`):
+- **Ramas** (todas sincronizadas con `origin`, HEAD `3d75843`):
   - `master` → `2c417f7` — rama de release.
   - `dev` → `2c417f7` — integración.
-  - `feature/develop` (activa) → `9efef03` — desarrollo en curso.
+  - `feature/develop` (activa) → `3d75843` — desarrollo en curso.
 - Working tree limpio. Todo publicado en el remoto.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
 
@@ -18,9 +18,10 @@
 - Backend: `tsc --noEmit` → **0 errores**.
 - Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
 - **Tests**:
-  - Backend (Jest): **32 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service` (mock Prisma + fetch global).
+  - Backend unitarios (Jest): **32 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service` (mock Prisma + fetch global).
+  - Backend e2e (Supertest): **28 tests** — `health`, `tasks`, `settings`, `radio` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
   - Flutter: **11 tests** — `splash_screen` (render + barra de progreso), `home_screen` (4 mensajes contextuales con providers mockeados), `quick_panel` (render tiles + callbacks open/close), `widget_test` (sanity checks).
-  - Cobertura: servicios core del backend + pantallas estables de Flutter. Próximos pasos: controllers (e2e con Supertest) y más pantallas Flutter.
+  - **Total: 71 tests** (32 unit + 28 e2e + 11 widget). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -76,8 +77,9 @@ Después de eso, el slider de brillo en el Quick Panel debería escribir y persi
 
 ### Fase 1 — Protección (tests) ✅
 - **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio` (32 tests, mock Prisma + fetch global). ✅
+- **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio` controllers (28 tests, AppModule completa con Prisma + EventsGateway mockeados). ✅
 - **Widget tests Flutter**: `splash`, `home`, `quick_panel` (9 tests, providers mockeados con fakes que evitan red/timers). ✅
-- **Siguiente**: ampliar cobertura — controllers backend (e2e con Supertest), más pantallas Flutter (radio, settings, system).
+- **Siguiente**: ampliar cobertura — más pantallas Flutter (radio, settings, system), controllers restantes (notifications, event-log, updates, system).
 
 ### Fase 2 — Cerrar lo casi-terminado
 - **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
