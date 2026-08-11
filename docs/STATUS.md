@@ -1,15 +1,15 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-08-11 (Fase 0 — STATUS al día + lints limpios)
+Última actualización: 2026-08-11 (Fase 1 — tests unitarios backend + widget tests Flutter)
 
 ## Stack y ramas
 
 - **Stack**: NestJS 11 + Prisma 6 + PostgreSQL 17 (backend, host) · Flutter stable (app, host) · PostgreSQL en Docker.
 - **Versión**: `0.1.0` (`VERSION.txt`).
-- **Ramas** (todas sincronizadas con `origin`, HEAD `2c417f7`):
+- **Ramas** (todas sincronizadas con `origin`, HEAD `9efef03`):
   - `master` → `2c417f7` — rama de release.
   - `dev` → `2c417f7` — integración.
-  - `feature/develop` (activa) → `2c417f7` — desarrollo en curso.
+  - `feature/develop` (activa) → `9efef03` — desarrollo en curso.
 - Working tree limpio. Todo publicado en el remoto.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
 
@@ -17,7 +17,10 @@
 
 - Backend: `tsc --noEmit` → **0 errores**.
 - Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
-- **Tests**: todavía no hay ninguno (backend ni Flutter). Es el mayor vacío técnico actual.
+- **Tests**:
+  - Backend (Jest): **32 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service` (mock Prisma + fetch global).
+  - Flutter: **11 tests** — `splash_screen` (render + barra de progreso), `home_screen` (4 mensajes contextuales con providers mockeados), `quick_panel` (render tiles + callbacks open/close), `widget_test` (sanity checks).
+  - Cobertura: servicios core del backend + pantallas estables de Flutter. Próximos pasos: controllers (e2e con Supertest) y más pantallas Flutter.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -71,9 +74,10 @@ ls -la /sys/class/backlight/intel_backlight/brightness
 
 Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
 
-### Fase 1 — Protección (tests)
-- **Tests unitarios backend (Jest)**: empezar por `health`, `settings`, `tasks`, `radio` (mockear Prisma y servicios de sistema).
-- **Widget tests Flutter**: `splash`, `home`, `quick_panel` (pantallas estables).
+### Fase 1 — Protección (tests) ✅
+- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio` (32 tests, mock Prisma + fetch global). ✅
+- **Widget tests Flutter**: `splash`, `home`, `quick_panel` (9 tests, providers mockeados con fakes que evitan red/timers). ✅
+- **Siguiente**: ampliar cobertura — controllers backend (e2e con Supertest), más pantallas Flutter (radio, settings, system).
 
 ### Fase 2 — Cerrar lo casi-terminado
 - **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
