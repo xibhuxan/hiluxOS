@@ -61,11 +61,53 @@ final audioProvider = StateNotifierProvider<AudioNotifier, AudioState>(
 
 // ---- Network (WiFi) ----
 
+class WifiNetwork {
+  final String ssid;
+  final int signal;
+  final bool secure;
+  final bool inRange;
+  const WifiNetwork({required this.ssid, this.signal = 0, this.secure = false, this.inRange = false});
+
+  factory WifiNetwork.fromJson(Map<String, dynamic> j) => WifiNetwork(
+        ssid: j['ssid'] as String,
+        signal: (j['signal'] as num?)?.toInt() ?? 0,
+        secure: j['secure'] as bool? ?? false,
+        inRange: j['inRange'] as bool? ?? false,
+      );
+}
+
 class NetworkState {
   final bool? wifiEnabled;
   final bool connected;
   final String? ssid;
-  NetworkState({this.wifiEnabled, this.connected = false, this.ssid});
+  final List<WifiNetwork> networks;
+  final bool scanning;
+  final String? error;
+  const NetworkState({
+    this.wifiEnabled,
+    this.connected = false,
+    this.ssid,
+    this.networks = const [],
+    this.scanning = false,
+    this.error,
+  });
+
+  NetworkState copyWith({
+    bool? wifiEnabled,
+    bool? connected,
+    String? ssid,
+    List<WifiNetwork>? networks,
+    bool? scanning,
+    String? error,
+  }) =>
+      NetworkState(
+        wifiEnabled: wifiEnabled ?? this.wifiEnabled,
+        connected: connected ?? this.connected,
+        ssid: ssid ?? this.ssid,
+        networks: networks ?? this.networks,
+        scanning: scanning ?? this.scanning,
+        error: error,
+      );
 }
 
 class NetworkNotifier extends StateNotifier<NetworkState> {
@@ -80,10 +122,11 @@ class NetworkNotifier extends StateNotifier<NetworkState> {
     try {
       final res = await _api.get('/system/network');
       final d = res.data as Map<String, dynamic>;
-      state = NetworkState(
+      state = state.copyWith(
         wifiEnabled: d['wifiEnabled'] as bool?,
         connected: d['connected'] as bool,
         ssid: d['ssid'] as String?,
+        error: null,
       );
     } catch (_) {}
   }
@@ -94,6 +137,49 @@ class NetworkNotifier extends StateNotifier<NetworkState> {
       await _api.put('/system/network', data: {'enabled': next});
     } catch (_) {}
     await refresh();
+  }
+
+  Future<void> scan() async {
+    state = state.copyWith(scanning: true, error: null);
+    try {
+      final res = await _api.get('/system/network/wifi/scan');
+      final list = (res.data as List<dynamic>)
+          .map((e) => WifiNetwork.fromJson(e as Map<String, dynamic>))
+          .toList();
+      state = state.copyWith(networks: list, scanning: false);
+    } catch (e) {
+      state = state.copyWith(scanning: false, error: e.toString());
+    }
+  }
+
+  Future<void> connect(String ssid, String? password) async {
+    try {
+      await _api.post('/system/network/wifi/connect', data: {
+        'ssid': ssid,
+        if (password != null && password.isNotEmpty) 'password': password,
+      });
+      await refresh();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> disconnect() async {
+    try {
+      await _api.post('/system/network/wifi/disconnect');
+      await refresh();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> forget(String ssid) async {
+    try {
+      await _api.post('/system/network/wifi/forget', data: {'ssid': ssid});
+      await refresh();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
   }
 
   @override
@@ -109,10 +195,54 @@ final networkProvider = StateNotifierProvider<NetworkNotifier, NetworkState>(
 
 // ---- Bluetooth ----
 
+class BluetoothDevice {
+  final String mac;
+  final String name;
+  final bool paired;
+  final bool connected;
+  const BluetoothDevice({
+    required this.mac,
+    required this.name,
+    this.paired = false,
+    this.connected = false,
+  });
+
+  factory BluetoothDevice.fromJson(Map<String, dynamic> j) => BluetoothDevice(
+        mac: j['mac'] as String,
+        name: (j['name'] as String?) ?? 'Unknown',
+        paired: j['paired'] as bool? ?? false,
+        connected: j['connected'] as bool? ?? false,
+      );
+}
+
 class BluetoothState {
   final bool? powered;
   final bool connected;
-  BluetoothState({this.powered, this.connected = false});
+  final List<BluetoothDevice> devices;
+  final bool scanning;
+  final String? error;
+  const BluetoothState({
+    this.powered,
+    this.connected = false,
+    this.devices = const [],
+    this.scanning = false,
+    this.error,
+  });
+
+  BluetoothState copyWith({
+    bool? powered,
+    bool? connected,
+    List<BluetoothDevice>? devices,
+    bool? scanning,
+    String? error,
+  }) =>
+      BluetoothState(
+        powered: powered ?? this.powered,
+        connected: connected ?? this.connected,
+        devices: devices ?? this.devices,
+        scanning: scanning ?? this.scanning,
+        error: error,
+      );
 }
 
 class BluetoothNotifier extends StateNotifier<BluetoothState> {
@@ -127,9 +257,10 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
     try {
       final res = await _api.get('/system/bluetooth');
       final d = res.data as Map<String, dynamic>;
-      state = BluetoothState(
+      state = state.copyWith(
         powered: d['powered'] as bool?,
         connected: d['connected'] as bool,
+        error: null,
       );
     } catch (_) {}
   }
@@ -140,6 +271,58 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
       await _api.put('/system/bluetooth', data: {'powered': next});
     } catch (_) {}
     await refresh();
+  }
+
+  Future<void> scan() async {
+    state = state.copyWith(scanning: true, error: null);
+    try {
+      final res = await _api.get('/system/network/bluetooth/scan');
+      final list = (res.data as List<dynamic>)
+          .map((e) => BluetoothDevice.fromJson(e as Map<String, dynamic>))
+          .toList();
+      state = state.copyWith(devices: list, scanning: false);
+    } catch (e) {
+      state = state.copyWith(scanning: false, error: e.toString());
+    }
+  }
+
+  Future<void> pair(String mac, String? pin) async {
+    try {
+      await _api.post('/system/network/bluetooth/pair', data: {
+        'mac': mac,
+        if (pin != null && pin.isNotEmpty) 'pin': pin,
+      });
+      await scan();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> connect(String mac) async {
+    try {
+      await _api.post('/system/network/bluetooth/connect', data: {'mac': mac});
+      await scan();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> disconnect(String mac) async {
+    try {
+      await _api.post('/system/network/bluetooth/disconnect', data: {'mac': mac});
+      await scan();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> remove(String mac) async {
+    try {
+      await _api.post('/system/network/bluetooth/remove', data: {'mac': mac});
+      await scan();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
   }
 
   @override

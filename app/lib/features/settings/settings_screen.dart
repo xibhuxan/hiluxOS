@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'settings_provider.dart';
 import '../../core/theme/colors.dart';
 import '../updates/widgets/update_section.dart';
+import 'widgets/wifi_section.dart';
+import 'widgets/bluetooth_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -42,6 +44,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: const UpdateSection(),
+                  ),
+                ),
+                // Wi-Fi & Bluetooth connectivity sections.
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: const WifiSection(),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: const BluetoothSection(),
                   ),
                 ),
                 SliverPadding(

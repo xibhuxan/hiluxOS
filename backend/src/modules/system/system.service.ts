@@ -1,10 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import os from 'node:os';
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { CommandRunner } from './command-runner';
+
+/** A discovered Wi-Fi network. */
+export interface WifiNetwork {
+  ssid: string;
+  signal: number;
+  secure: boolean;
+  inRange: boolean;
+}
+
+/** A discovered Bluetooth device. */
+export interface BluetoothDevice {
+  mac: string;
+  name: string;
+  paired: boolean;
+  connected: boolean;
+}
 
 @Injectable()
 export class SystemService {
+  constructor(private readonly cmd: CommandRunner) {}
+
   /** Static system identity info. */
   getInfo() {
     return {
@@ -48,7 +66,7 @@ export class SystemService {
 
   /** Free/used space on the root filesystem via df. */
   getDisk(): { freeGb: number | null; usedPercent: number | null } {
-    const out = this.run('df', ['-m', '/']);
+    const out = this.cmd.run('df', ['-m', '/']);
     if (!out) return { freeGb: null, usedPercent: null };
     const lines = out.trim().split('\n');
     const parts = lines[lines.length - 1].trim().split(/\s+/);
@@ -75,42 +93,19 @@ export class SystemService {
   }
 
   // ---- Hardware control helpers ----
-
-  /** Run a command, returning stdout or null if it fails/unavailable. */
-  private run(bin: string, args: string[], timeoutMs = 2000): string | null {
-    try {
-      return execFileSync(bin, args, {
-        encoding: 'utf8',
-        timeout: timeoutMs,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    } catch {
-      return null;
-    }
-  }
-
-  /** Run a command, throwing if it fails. */
-  private runOrThrow(bin: string, args: string[], timeoutMs = 2000, stdin?: string): string {
-    const proc = execFileSync(bin, args, {
-      encoding: 'utf8',
-      timeout: timeoutMs,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      input: stdin,
-    });
-    return proc;
-  }
+  // Command execution is delegated to CommandRunner (injectable, mockable).
 
   // ---- Audio (wpctl, amixer fallback) ----
 
   getAudio(): { volume: number | null; muted: boolean | null } {
-    const out = this.run('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@']);
+    const out = this.cmd.run('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@']);
     if (out !== null) {
       const m = out.match(/Volume:\s*([0-9.]+)(\s*\[MUTED\])?/);
       if (m) {
         return { volume: Math.round(parseFloat(m[1]) * 100), muted: /\[MUTED\]/.test(out) };
       }
     }
-    const am = this.run('amixer', ['sget', 'Master']) ?? this.run('amixer', ['sget', 'PCM']);
+    const am = this.cmd.run('amixer', ['sget', 'Master']) ?? this.cmd.run('amixer', ['sget', 'PCM']);
     if (am) {
       const m = am.match(/\[(\d{1,3})%\]/);
       return {
@@ -123,26 +118,26 @@ export class SystemService {
 
   setAudioVolume(pct: number): void {
     const v = Math.max(0, Math.min(100, Math.round(pct)));
-    if (this.run('wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', (v / 100).toFixed(3)]) !== null) return;
-    this.runOrThrow('amixer', ['sset', 'Master', `${v}%`]);
+    if (this.cmd.run('wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', (v / 100).toFixed(3)]) !== null) return;
+    this.cmd.runOrThrow('amixer', ['sset', 'Master', `${v}%`]);
   }
 
   setAudioMuted(muted: boolean): void {
-    if (this.run('wpctl', ['set-mute', '@DEFAULT_AUDIO_SINK@', muted ? '1' : '0']) !== null) return;
-    this.runOrThrow('amixer', ['sset', 'Master', muted ? 'mute' : 'unmute']);
+    if (this.cmd.run('wpctl', ['set-mute', '@DEFAULT_AUDIO_SINK@', muted ? '1' : '0']) !== null) return;
+    this.cmd.runOrThrow('amixer', ['sset', 'Master', muted ? 'mute' : 'unmute']);
   }
 
   // ---- Network (nmcli) ----
 
   getNetwork(): { wifiEnabled: boolean | null; connected: boolean; ssid: string | null; signal: number | null } {
-    const radio = this.run('nmcli', ['-t', '-f', 'WIFI', 'radio']);
+    const radio = this.cmd.run('nmcli', ['-t', '-f', 'WIFI', 'radio']);
     if (radio === null) return { wifiEnabled: null, connected: false, ssid: null, signal: null };
     const wifiEnabled = radio.trim() === 'enabled';
 
     let ssid: string | null = null;
     let signal: number | null = null;
     if (wifiEnabled) {
-      const list = this.run('nmcli', ['-t', '-f', 'ACTIVE,SSID,SIGNAL', 'dev', 'wifi', 'list']);
+      const list = this.cmd.run('nmcli', ['-t', '-f', 'ACTIVE,SSID,SIGNAL', 'dev', 'wifi', 'list']);
       if (list) {
         for (const line of list.split('\n')) {
           if (line.startsWith('yes:')) {
@@ -158,13 +153,13 @@ export class SystemService {
   }
 
   setWifi(enabled: boolean): void {
-    this.runOrThrow('nmcli', ['radio', 'wifi', enabled ? 'on' : 'off']);
+    this.cmd.runOrThrow('nmcli', ['radio', 'wifi', enabled ? 'on' : 'off']);
   }
 
   // ---- Bluetooth (bluetoothctl) ----
 
   getBluetooth(): { powered: boolean | null; connected: boolean } {
-    const out = this.run('bluetoothctl', ['show']);
+    const out = this.cmd.run('bluetoothctl', ['show']);
     if (out === null) return { powered: null, connected: false };
     return {
       powered: /Powered:\s*yes/i.test(out),
@@ -173,14 +168,14 @@ export class SystemService {
   }
 
   setBluetooth(powered: boolean): void {
-    this.runOrThrow('bluetoothctl', ['power', powered ? 'on' : 'off']);
+    this.cmd.runOrThrow('bluetoothctl', ['power', powered ? 'on' : 'off']);
   }
 
   // ---- Brightness (sysfs backlight) ----
 
   getBrightness(): { brightness: number | null; maxBrightness: number | null } {
-    const raw = this.run('cat', ['/sys/class/backlight/intel_backlight/brightness']);
-    const maxRaw = this.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    const raw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/brightness']);
+    const maxRaw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
     if (raw === null || maxRaw === null) return { brightness: null, maxBrightness: null };
     const current = parseInt(raw.trim(), 10);
     const max = parseInt(maxRaw.trim(), 10);
@@ -190,7 +185,7 @@ export class SystemService {
 
   setBrightness(pct: number | undefined): void {
     if (pct === undefined) return;
-    const maxRaw = this.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    const maxRaw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
     if (maxRaw === null) return;
     const max = parseInt(maxRaw.trim(), 10);
     if (isNaN(max) || max === 0) return;
@@ -200,5 +195,123 @@ export class SystemService {
     } catch (err) {
       console.error(`[system] Failed to write brightness: ${err}`);
     }
+  }
+
+  // ---- Wi-Fi scan / connect / forget (nmcli) ----
+
+  /**
+   * Scan nearby Wi-Fi networks. Returns a deduplicated list ordered by signal
+   * strength (descending). Returns an empty array when nmcli is unavailable.
+   */
+  scanWifi(): WifiNetwork[] {
+    // `nmcli -t -f SSID,SIGNAL,SECURITY,IN-USE dev wifi list` produces colon-
+    // separated lines: `MyNet:84:wpa2: `. SSIDs containing colons are escaped
+    // as `\:` so we split on unescaped colons only.
+    const out = this.cmd.run('nmcli', [
+      '-t',
+      '-f',
+      'SSID,SIGNAL,SECURITY,IN-USE',
+      'dev',
+      'wifi',
+      'list',
+    ]);
+    if (!out) return [];
+    const seen = new Set<string>();
+    const nets: WifiNetwork[] = [];
+    for (const line of out.trim().split('\n')) {
+      if (!line) continue;
+      const parts = line.split(/(?<!\\):/).map((p) => p.replace(/\\:/g, ':'));
+      const ssid = (parts[0] ?? '').trim();
+      if (!ssid || seen.has(ssid)) continue;
+      seen.add(ssid);
+      nets.push({
+        ssid,
+        signal: parts[1] ? parseInt(parts[1], 10) : 0,
+        secure: !!parts[2] && parts[2].length > 0,
+        inRange: parts[3]?.trim() === '*',
+      });
+    }
+    return nets.sort((a, b) => b.signal - a.signal);
+  }
+
+  /**
+   * Connect to a Wi-Fi network. When `password` is omitted, nmcli tries the
+   * already-stored connection (useful for re-connecting to a known network).
+   * Throws on failure (caller maps to HTTP error).
+   */
+  connectWifi(ssid: string, password?: string): void {
+    const args = password
+      ? ['device', 'wifi', 'connect', ssid, 'password', password]
+      : ['connection', 'up', ssid];
+    this.cmd.runOrThrow('nmcli', args, 15000);
+  }
+
+  /** Disconnect the active Wi-Fi connection. */
+  disconnectWifi(): void {
+    this.cmd.runOrThrow('nmcli', ['device', 'disconnect', 'wlan0'], 5000);
+  }
+
+  /** Forget (delete) a saved Wi-Fi connection by SSID. */
+  forgetWifi(ssid: string): void {
+    this.cmd.runOrThrow('nmcli', ['connection', 'delete', ssid], 5000);
+  }
+
+  // ---- Bluetooth scan / pair / connect / remove (bluetoothctl) ----
+
+  /**
+   * Scan for nearby Bluetooth devices. bluetoothctl scan is asynchronous; this
+   * triggers a short scan then reads `devices` and `info <mac>` for each.
+   * Returns an empty array when bluetoothctl is unavailable.
+   */
+  scanBluetooth(): BluetoothDevice[] {
+    if (this.cmd.run('bluetoothctl', ['show']) === null) return [];
+    // A 3-second scan is enough for a kiosk that stays on the screen.
+    this.cmd.run('bluetoothctl', ['--timeout', '3', 'scan', 'on'], 5000);
+    const list = this.cmd.run('bluetoothctl', ['devices']);
+    if (!list) return [];
+    const devices: BluetoothDevice[] = [];
+    for (const line of list.trim().split('\n')) {
+      // `Device AA:BB:CC:DD:EE:FF Headphones`
+      const m = /^Device\s+([0-9A-Fa-f:]{17})\s+(.*)$/.exec(line.trim());
+      if (!m) continue;
+      const mac = m[1];
+      const name = m[2].trim();
+      const info = this.cmd.run('bluetoothctl', ['info', mac]) ?? '';
+      devices.push({
+        mac,
+        name,
+        paired: /Paired:\s*yes/i.test(info),
+        connected: /Connected:\s*yes/i.test(info),
+      });
+    }
+    return devices;
+  }
+
+  /**
+   * Pair a Bluetooth device. For SSPE devices a PIN is exchanged; when `pin`
+   * is provided it is fed to bluetoothctl via stdin.
+   */
+  pairBluetooth(mac: string, pin?: string): void {
+    if (pin) {
+      // bluetoothctl reads the PIN from stdin during pairing.
+      this.cmd.runOrThrow('bluetoothctl', ['pair', mac], 30000, `${pin}\n`);
+    } else {
+      this.cmd.runOrThrow('bluetoothctl', ['pair', mac], 30000);
+    }
+  }
+
+  /** Connect to an already-paired Bluetooth device. */
+  connectBluetooth(mac: string): void {
+    this.cmd.runOrThrow('bluetoothctl', ['connect', mac], 15000);
+  }
+
+  /** Disconnect a connected Bluetooth device. */
+  disconnectBluetooth(mac: string): void {
+    this.cmd.runOrThrow('bluetoothctl', ['disconnect', mac], 10000);
+  }
+
+  /** Remove (unpair) a paired Bluetooth device. */
+  removeBluetooth(mac: string): void {
+    this.cmd.runOrThrow('bluetoothctl', ['remove', mac], 10000);
   }
 }

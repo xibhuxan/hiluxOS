@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:virtual_keypad/virtual_keypad.dart';
 import '../core/theme/colors.dart';
 import '../features/notifications/widgets/notification_toast.dart';
 import '../features/notifications/widgets/notification_panel.dart';
@@ -25,6 +26,7 @@ class AppShellState extends ConsumerState<AppShell> {
   final _notificationPanelKey = GlobalKey<NotificationPanelState>();
   bool _notifOpen = false;
   bool _quickOpen = false;
+  bool _keyboardVisible = false;
 
   void _onNotifChanged(bool open) {
     if (_notifOpen != open) setState(() => _notifOpen = open);
@@ -76,14 +78,20 @@ class AppShellState extends ConsumerState<AppShell> {
       endDrawer: const AppDrawerGrid(),
       body: Stack(
         children: [
-          // Main content
+          // Main content. When the on-screen keyboard is visible we reserve
+          // space at the bottom so the focused field stays visible above it.
           Container(
             decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
             child: SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: widget.child,
+                child: AnimatedPadding(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  padding: EdgeInsets.only(bottom: _keyboardVisible ? 280 : 0),
+                  child: widget.child,
+                ),
               ),
             ),
           ),
@@ -115,6 +123,21 @@ class AppShellState extends ConsumerState<AppShell> {
             left: 0,
             right: 0,
             child: NotificationToast(),
+          ),
+          // On-screen virtual keyboard, pinned to the bottom. Standalone mode
+          // attaches to any focused TextField/TextFormField in the subtree, so
+          // dialogs (TaskDialog, WiFi password, BT PIN) get a keyboard for free.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: VirtualKeypad(
+              standalone: true,
+              hideWhenUnfocused: true,
+              onVisibilityChanged: (v) {
+                if (_keyboardVisible != v) setState(() => _keyboardVisible = v);
+              },
+            ),
           ),
         ],
       ),

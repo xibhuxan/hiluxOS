@@ -30,7 +30,9 @@
 - `GET /api/system/info`, `/api/system/resources` (CPU/RAM/temp/**disco**/uptime/load).
 - `GET|PUT /api/system/audio` — volumen real del SO (wpctl, amixer fallback) + mute.
 - `GET|PUT /api/system/network` — WiFi real (nmcli) + toggle.
+- `GET /api/system/network/wifi/scan`, `POST .../wifi/connect` (ssid+password), `POST .../wifi/disconnect`, `POST .../wifi/forget` — escaneo, conexión (con contraseña), desconexión y olvido de redes WiFi.
 - `GET|PUT /api/system/bluetooth` — Bluetooth real (bluetoothctl) + toggle.
+- `GET /api/system/network/bluetooth/scan`, `POST .../bluetooth/pair` (mac+pin opcional), `POST .../bluetooth/connect`, `POST .../bluetooth/disconnect`, `POST .../bluetooth/remove` — escaneo, emparejamiento (con PIN vía stdin), conexión, desconexión y olvido de dispositivos BT. `SystemService` refactorizado con `CommandRunner` inyectable (mockeable en tests).
 - `GET|PUT /api/system/brightness` — brillo real vía sysfs (lectura/escritura en `/sys/class/backlight/intel_backlight/brightness`).
 - `GET|PUT|DELETE /api/settings` — CRUD de ajustes.
 - `GET /api/radio/stations/search`, `/radio/favorites` (GET/POST/DELETE), `/radio/history`, `/radio/stream/:id` — Radio Browser API.
@@ -47,6 +49,8 @@
 - **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Home: barra contextual + 4 cards (Estado actual, Sistema, Vehículo, Pendientes) en grid 2×2 sin scroll.
 - Pantallas: Radio (búsqueda, favoritos, historial, playback + visualizador), System, Settings — cableadas al backend.
+- **Settings → Wi-Fi & Bluetooth**: secciones dedicadas en la pantalla de Ajustes con toggle de radio, escaneo, lista de redes/dispositivos, diálogo de contraseña WiFi y diálogo de PIN Bluetooth.
+- **Teclado en pantalla** (`virtual_keypad`): teclado virtual pure-Dart integrado en el `AppShell` (modo standalone, se oculta sin foco). Cualquier `TextField`/`TextFormField` del app (incluido `TaskDialog`, contraseña WiFi, PIN BT) obtiene teclado táctil automáticamente — necesario porque la RPi+Cage/Wayland no tiene IME del sistema. `initializeKeyboardLayouts()` en `main()`.
 - **Notificaciones**: panel + toast, provider conectado al backend.
 - **Updates**: sección de actualización OTA en la UI.
 - `flutter analyze` sin errores.
@@ -76,14 +80,14 @@ ls -la /sys/class/backlight/intel_backlight/brightness
 Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
 
 ### Fase 1 — Protección (tests) ✅
-- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio` (36 tests, mock Prisma + fetch global). ✅
-- **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio` controllers (29 tests, AppModule completa con Prisma + EventsGateway mockeados). ✅
-- **Widget tests Flutter**: `splash`, `home`, `quick_panel`, `pendientes_card` (17 tests, providers mockeados con fakes que evitan red/timers). ✅
-- **Siguiente**: ampliar cobertura — más pantallas Flutter (radio, settings, system), controllers restantes (notifications, event-log, updates, system).
+- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio`, `system` (54 tests, mock Prisma + `CommandRunner` fake para nmcli/bluetoothctl). ✅
+- **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio`, `system` controllers (41 tests, AppModule completa con Prisma + EventsGateway + SystemService mockeados). ✅
+- **Widget tests Flutter**: `splash`, `home`, `quick_panel`, `pendientes_card`, `network_settings` (22 tests, providers mockeados con fakes que evitan red/timers). ✅
+- **Siguiente**: ampliar cobertura — más pantallas Flutter (radio, system), controllers restantes (notifications, event-log, updates).
 
 ### Fase 2 — Cerrar lo casi-terminado
 - **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
-- **Pantalla de configuración WiFi/Bluetooth**: los providers ya existen y funcionan, hoy solo informativos en la card Sistema. Conectarlos a una pantalla aparte.
+- ~~**Pantalla de configuración WiFi/Bluetooth**: los providers ya existen y funcionan, hoy solo informativos en la card Sistema. Conectarlos a una pantalla aparte.~~ ✅ — secciones `WifiSection` y `BluetoothSection` dentro de Settings: toggle, escaneo, lista de redes/dispositivos, diálogo de contraseña WiFi (`WifiPasswordDialog`) y diálogo de PIN BT (`BtPinDialog`). Backend con scan/connect/disconnect/forget/pair/remove vía nmcli/bluetoothctl. Teclado en pantalla `virtual_keypad` para meter texto en la RPi táctil.
 - ~~**CRUD de Pendientes desde la UI**: el backend ya soporta POST/PUT/DELETE; la UI solo lista/completa. Rellenar crear/editar.~~ ✅ — botón `+` para crear, tap en título para editar, icono papelera para borrar (con confirmación). `TasksService` ahora lanza `NotFoundException` (404) en Prisma `P2025` en vez de propagar 500.
 - ~~Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).~~ ✅ — el backend ya ordena por `priority desc` en `findAll()`; la UI ahora muestra la prioridad y permite editarla con un slider 0–5 en el diálogo.
 

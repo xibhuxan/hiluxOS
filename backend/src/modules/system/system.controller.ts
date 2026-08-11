@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Put } from '@nestjs/common';
 import { SystemService } from './system.service';
 import { AudioDto } from './dto/audio.dto';
-import { NetworkToggleDto } from './dto/network.dto';
-import { BluetoothToggleDto } from './dto/bluetooth.dto';
+import { NetworkToggleDto, WifiConnectDto, WifiSsidDto } from './dto/network.dto';
+import { BluetoothToggleDto, BtMacDto, BtPairDto } from './dto/bluetooth.dto';
 import { BrightnessDto } from './dto/brightness.dto';
 
 @Controller('system')
@@ -59,6 +59,69 @@ export class SystemController {
   setBluetooth(@Body() dto: BluetoothToggleDto) {
     this.system.setBluetooth(dto.powered);
     return this.system.getBluetooth();
+  }
+
+  // ---- Wi-Fi scan / connect / forget ----
+
+  @Get('network/wifi/scan')
+  scanWifi() {
+    return this.system.scanWifi();
+  }
+
+  @Post('network/wifi/connect')
+  @HttpCode(200)
+  connectWifi(@Body() dto: WifiConnectDto) {
+    this.system.connectWifi(dto.ssid, dto.password);
+    return this.system.getNetwork();
+  }
+
+  @Post('network/wifi/disconnect')
+  @HttpCode(200)
+  disconnectWifi() {
+    this.system.disconnectWifi();
+    return this.system.getNetwork();
+  }
+
+  @Post('network/wifi/forget')
+  @HttpCode(200)
+  forgetWifi(@Body() dto: WifiSsidDto) {
+    this.system.forgetWifi(dto.ssid);
+    return this.system.getNetwork();
+  }
+
+  // ---- Bluetooth scan / pair / connect / remove ----
+
+  @Get('network/bluetooth/scan')
+  scanBluetooth() {
+    return this.system.scanBluetooth();
+  }
+
+  @Post('network/bluetooth/pair')
+  @HttpCode(200)
+  pairBluetooth(@Body() dto: BtPairDto) {
+    this.system.pairBluetooth(dto.mac, dto.pin);
+    return this.system.scanBluetooth();
+  }
+
+  @Post('network/bluetooth/connect')
+  @HttpCode(200)
+  connectBluetooth(@Body() dto: BtMacDto) {
+    this.system.connectBluetooth(dto.mac);
+    return this.system.scanBluetooth();
+  }
+
+  @Post('network/bluetooth/disconnect')
+  @HttpCode(200)
+  disconnectBluetooth(@Body() dto: BtMacDto) {
+    this.system.disconnectBluetooth(dto.mac);
+    return this.system.scanBluetooth();
+  }
+
+  @Post('network/bluetooth/remove')
+  @HttpCode(200)
+  removeBluetooth(@Body() dto: BtMacDto) {
+    this.system.removeBluetooth(dto.mac);
+    return this.system.scanBluetooth();
   }
 
   @Get('brightness')
