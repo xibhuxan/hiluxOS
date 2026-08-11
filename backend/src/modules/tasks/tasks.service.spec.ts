@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { TasksService } from './tasks.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -112,6 +113,24 @@ describe('TasksService', () => {
         data: dto,
       });
     });
+
+    it('throws NotFoundException when Prisma reports P2025', async () => {
+      const error: any = new Error('Record not found');
+      error.code = 'P2025';
+      prisma.task.update.mockRejectedValue(error);
+
+      await expect(service.update('999', { done: true })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('re-throws non-P2025 errors unchanged', async () => {
+      const error: any = new Error('Connection lost');
+      error.code = 'P1001';
+      prisma.task.update.mockRejectedValue(error);
+
+      await expect(service.update('1', { done: true })).rejects.toBe(error);
+    });
   });
 
   describe('remove', () => {
@@ -121,6 +140,22 @@ describe('TasksService', () => {
       await service.remove('1');
 
       expect(prisma.task.delete).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+
+    it('throws NotFoundException when Prisma reports P2025', async () => {
+      const error: any = new Error('Record not found');
+      error.code = 'P2025';
+      prisma.task.delete.mockRejectedValue(error);
+
+      await expect(service.remove('999')).rejects.toThrow(NotFoundException);
+    });
+
+    it('re-throws non-P2025 errors unchanged', async () => {
+      const error: any = new Error('Connection lost');
+      error.code = 'P1001';
+      prisma.task.delete.mockRejectedValue(error);
+
+      await expect(service.remove('1')).rejects.toBe(error);
     });
   });
 });

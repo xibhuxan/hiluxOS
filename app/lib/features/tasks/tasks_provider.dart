@@ -27,9 +27,45 @@ class TasksNotifier extends StateNotifier<TasksState> {
     } catch (_) {}
   }
 
+  Future<void> create({
+    required String title,
+    String kind = 'none',
+    String? value,
+    int priority = 0,
+  }) async {
+    try {
+      await _api.post('/tasks', data: {
+        'title': title,
+        'kind': kind,
+        if (value != null && value.isNotEmpty) 'value': value,
+        'priority': priority,
+      });
+    } catch (_) {}
+    await load();
+  }
+
+  Future<void> update(Task task) async {
+    try {
+      await _api.put('/tasks/${task.id}', data: {
+        'title': task.title,
+        'kind': task.kind,
+        'value': task.value,
+        'priority': task.priority,
+      });
+    } catch (_) {}
+    await load();
+  }
+
   Future<void> complete(Task task) async {
     try {
       await _api.put('/tasks/${task.id}', data: {'done': true});
+    } catch (_) {}
+    await load();
+  }
+
+  Future<void> remove(Task task) async {
+    try {
+      await _api.delete('/tasks/${task.id}');
     } catch (_) {}
     await load();
   }

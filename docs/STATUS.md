@@ -76,16 +76,16 @@ ls -la /sys/class/backlight/intel_backlight/brightness
 Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
 
 ### Fase 1 — Protección (tests) ✅
-- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio` (32 tests, mock Prisma + fetch global). ✅
-- **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio` controllers (28 tests, AppModule completa con Prisma + EventsGateway mockeados). ✅
-- **Widget tests Flutter**: `splash`, `home`, `quick_panel` (9 tests, providers mockeados con fakes que evitan red/timers). ✅
+- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio` (36 tests, mock Prisma + fetch global). ✅
+- **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio` controllers (29 tests, AppModule completa con Prisma + EventsGateway mockeados). ✅
+- **Widget tests Flutter**: `splash`, `home`, `quick_panel`, `pendientes_card` (17 tests, providers mockeados con fakes que evitan red/timers). ✅
 - **Siguiente**: ampliar cobertura — más pantallas Flutter (radio, settings, system), controllers restantes (notifications, event-log, updates, system).
 
 ### Fase 2 — Cerrar lo casi-terminado
 - **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
 - **Pantalla de configuración WiFi/Bluetooth**: los providers ya existen y funcionan, hoy solo informativos en la card Sistema. Conectarlos a una pantalla aparte.
-- **CRUD de Pendientes desde la UI**: el backend ya soporta POST/PUT/DELETE; la UI solo lista/completa. Rellenar crear/editar.
-- Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).
+- ~~**CRUD de Pendientes desde la UI**: el backend ya soporta POST/PUT/DELETE; la UI solo lista/completa. Rellenar crear/editar.~~ ✅ — botón `+` para crear, tap en título para editar, icono papelera para borrar (con confirmación). `TasksService` ahora lanza `NotFoundException` (404) en Prisma `P2025` en vez de propagar 500.
+- ~~Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).~~ ✅ — el backend ya ordena por `priority desc` en `findAll()`; la UI ahora muestra la prioridad y permite editarla con un slider 0–5 en el diálogo.
 
 ### Fase 3 — Diferenciador (HAL)
 - **HAL mock-first**: módulos `Vehicle`/`Power`/`GPIO` con interfaz + implementación mock (toggle por env), siguiendo la arquitectura de sustitución de `ARCHITECTURE.md`. Desbloquea la card "Vehículo" (hoy "No conectado").

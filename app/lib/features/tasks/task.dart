@@ -23,4 +23,20 @@ class Task {
         done: j['done'] as bool? ?? false,
         priority: j['priority'] as int? ?? 0,
       );
+
+  Task copyWith({
+    String? title,
+    String? kind,
+    String? value,
+    bool? done,
+    int? priority,
+  }) =>
+      Task(
+        id: id,
+        title: title ?? this.title,
+        kind: kind ?? this.kind,
+        value: value ?? this.value,
+        done: done ?? this.done,
+        priority: priority ?? this.priority,
+      );
 }

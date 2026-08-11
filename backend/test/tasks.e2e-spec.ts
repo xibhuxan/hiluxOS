@@ -98,7 +98,7 @@ describe('TasksController (e2e)', () => {
         .put('/api/tasks/999')
         .send({ done: true });
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(404);
       expect(prisma.task.update).toHaveBeenCalled();
     });
   });
@@ -111,6 +111,17 @@ describe('TasksController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(prisma.task.delete).toHaveBeenCalledWith({ where: { id: '1' } });
+    });
+
+    it('returns 404 when the task does not exist', async () => {
+      const error: any = new Error('Record not found');
+      error.code = 'P2025';
+      prisma.task.delete.mockRejectedValue(error);
+
+      const res = await agent(app).delete('/api/tasks/999');
+
+      expect(res.status).toBe(404);
+      expect(prisma.task.delete).toHaveBeenCalledWith({ where: { id: '999' } });
     });
   });
 });
