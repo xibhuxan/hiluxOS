@@ -40,7 +40,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: const SplashScreen(),
-          transitionsBuilder: (_, animation, __, child) =>
+          transitionsBuilder: (_, animation, _, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 350),
         ),

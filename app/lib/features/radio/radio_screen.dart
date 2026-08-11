@@ -159,7 +159,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> with SingleTickerProv
         final isFav = ref.watch(radioProvider).favorites.any((f) => f.url == s.url);
         return ListTile(
           leading: s.favicon != null && s.favicon!.isNotEmpty
-              ? Image.network(s.favicon!, width: 40, height: 40, errorBuilder: (_, __, ___) =>
+              ? Image.network(s.favicon!, width: 40, height: 40, errorBuilder: (_, _, _) =>
                   const Icon(Icons.radio, color: AppColors.primary))
               : const Icon(Icons.radio, color: AppColors.primary),
           title: Text(s.name),

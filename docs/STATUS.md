@@ -1,16 +1,23 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-07-27 (Brightness real + hot reload)
+Última actualización: 2026-08-11 (Fase 0 — STATUS al día + lints limpios)
 
 ## Stack y ramas
 
-- **Stack**: NestJS + Prisma + PostgreSQL (backend, host) · Flutter (app, host) · PostgreSQL en Docker.
-- **Ramas**:
-  - `master` → `51c3bad` (4 commits por delante de `origin/master`, **sin push**).
-  - `dev` → `4c8de70` (mergeado desde `feature/ui-polish`).
-  - `feature/ui-polish` → `4c8de70` (ya mergeada a `dev`, se puede eliminar).
-- **Sin push** a remoto en ninguna rama. Cuando se quiera publicar: `git push origin master` (fast-forward) + `git push -u origin dev`.
+- **Stack**: NestJS 11 + Prisma 6 + PostgreSQL 17 (backend, host) · Flutter stable (app, host) · PostgreSQL en Docker.
+- **Versión**: `0.1.0` (`VERSION.txt`).
+- **Ramas** (todas sincronizadas con `origin`, HEAD `2c417f7`):
+  - `master` → `2c417f7` — rama de release.
+  - `dev` → `2c417f7` — integración.
+  - `feature/develop` (activa) → `2c417f7` — desarrollo en curso.
+- Working tree limpio. Todo publicado en el remoto.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
+
+## Estado de compilación
+
+- Backend: `tsc --noEmit` → **0 errores**.
+- Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
+- **Tests**: todavía no hay ninguno (backend ni Flutter). Es el mayor vacío técnico actual.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -20,11 +27,14 @@
 - `GET|PUT /api/system/audio` — volumen real del SO (wpctl, amixer fallback) + mute.
 - `GET|PUT /api/system/network` — WiFi real (nmcli) + toggle.
 - `GET|PUT /api/system/bluetooth` — Bluetooth real (bluetoothctl) + toggle.
-- **`GET|PUT /api/system/brightness`** — brillo real vía sysfs (lectura/escritura en `/sys/class/backlight/intel_backlight/brightness`).
+- `GET|PUT /api/system/brightness` — brillo real vía sysfs (lectura/escritura en `/sys/class/backlight/intel_backlight/brightness`).
 - `GET|PUT|DELETE /api/settings` — CRUD de ajustes.
 - `GET /api/radio/stations/search`, `/radio/favorites` (GET/POST/DELETE), `/radio/history`, `/radio/stream/:id` — Radio Browser API.
 - `GET /api/tasks` (+ POST/PUT/DELETE) — módulo Pendientes, con seed (ITV, aceite, update, backup).
-- WebSocket `/events` (gateway).
+- `GET /api/notifications` — sistema de notificaciones (creación, listado, marcar leída = borrar).
+- `GET /api/event-log` — registro de eventos del sistema.
+- WebSocket `/events` (gateway, `ws` en lugar de Socket.IO para compatibilidad con Flutter).
+- **Sistema OTA** (`/api/updates`): deploy blue-green, rollback automático, comprobación por `VERSION.txt`, descarga del tarball master, y **actualización del bundle UI** desde GitHub Releases + reinicio de cage. Endpoints de estado/verificación/aplicación.
 - Migraciones Prisma aplicadas; seed ejecutado.
 
 ### Flutter (`app/`)
@@ -33,11 +43,19 @@
 - **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Home: barra contextual + 4 cards (Estado actual, Sistema, Vehículo, Pendientes) en grid 2×2 sin scroll.
 - Pantallas: Radio (búsqueda, favoritos, historial, playback + visualizador), System, Settings — cableadas al backend.
+- **Notificaciones**: panel + toast, provider conectado al backend.
+- **Updates**: sección de actualización OTA en la UI.
 - `flutter analyze` sin errores.
+
+### Infra / despliegue
+- `scripts/install-pi.sh` — instalador para Raspberry Pi OS (Debian-minimal): PostgreSQL auto-start, detección de node, build, prune de devDeps, salida a `/var/log/hiluxos-install.log`.
+- `scripts/release-ui.sh` — publica el bundle Flutter como GitHub Release para que el OTA lo descargue.
+- Cage kiosk mode (sin decoraciones de ventana), backend `seatd` habilitado para input devices.
+- Despliegue a Pi no está totalmente automatizado a un solo comando todavía.
 
 ## Pendiente / siguientes pasos
 
-### ⚠️ Brightness — permisos (pendiente de aplicar)
+### ⚠️ Brightness — permisos (pendiente de aplicar en el SO)
 El backend ya tiene el endpoint `/system/brightness` y el slider del Quick Panel lo usa. **Pero** `/sys/class/backlight/intel_backlight/brightness` es de `root:root` con permisos `-rw-r--r--`, así que el backend (corre como `xibhu`) no puede escribir. Ya está creada la regla udev (`scripts/99-backlight.rules`) y el `setup.sh` actualizado, pero **falta aplicar los permisos manualmente** tras el reinicio:
 
 ```bash
@@ -53,28 +71,26 @@ ls -la /sys/class/backlight/intel_backlight/brightness
 
 Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
 
-### Inmediato
-- ✅ **Quick Panel**: overlay deslizante con toggles WiFi/BT, sliders volumen/brillo, indicadores. Cierra tocando fuera.
-- ✅ **Brightness real**: endpoint backend + provider Flutter conectado a `/system/brightness`.
-- ✅ **Hot reload**: `scripts/run-app.sh` ahora muestra banner y usa `--debug`.
-- Decidir si subir a remoto (`master` va con fast-forward).
+### Fase 1 — Protección (tests)
+- **Tests unitarios backend (Jest)**: empezar por `health`, `settings`, `tasks`, `radio` (mockear Prisma y servicios de sistema).
+- **Widget tests Flutter**: `splash`, `home`, `quick_panel` (pantallas estables).
 
-### UI/UX (siguiente pasada)
-- Pulido interno de las apps: **Radio** (shimmer al buscar, entrada animada de ítems, "pop" del icono de favorito, now-playing más vistoso), **System**, **Settings** (cabeceras, feedback).
-- La card **Sistema** tiene una celda vacía (8º hueco): rellenar con algo útil (p. ej. estado de red global, versión, o un mini gauges) o redistribuir.
-- **Configuración de WiFi/Bluetooth** en una pantalla aparte (los toggles reales viven en los providers `networkProvider`/`bluetoothProvider`, hoy solo informativos en la card Sistema).
-- **Pendientes**: hoy solo listar + completar; falta **crear/editar** tareas desde la UI (el backend ya soporta POST/PUT/DELETE).
-- Recordatorios de mantenimiento / prioridad de tareas (backend tiene `priority`, no se ordena en UI).
+### Fase 2 — Cerrar lo casi-terminado
+- **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
+- **Pantalla de configuración WiFi/Bluetooth**: los providers ya existen y funcionan, hoy solo informativos en la card Sistema. Conectarlos a una pantalla aparte.
+- **CRUD de Pendientes desde la UI**: el backend ya soporta POST/PUT/DELETE; la UI solo lista/completa. Rellenar crear/editar.
+- Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).
 
-### Backend (futuro, fuera del MVP)
-- **HAL**: módulos GPIO, Power, Vehicle/OBD-II (mock-first, toggle por env). La card Vehículo hoy muestra "No conectado".
+### Fase 3 — Diferenciador (HAL)
+- **HAL mock-first**: módulos `Vehicle`/`Power`/`GPIO` con interfaz + implementación mock (toggle por env), siguiendo la arquitectura de sustitución de `ARCHITECTURE.md`. Desbloquea la card "Vehículo" (hoy "No conectado").
+- **Salud energética de la Pi**: undervoltage/throttle leyendo `/sys` o `vcgencmd`.
+
+### Fase 4 — Pulido y producto
+- Pulido UI de **Radio** (shimmer en búsqueda, entrada animada de ítems, "pop" de favorito, now-playing vistoso), **System**, **Settings** (cabeceras, feedback).
+- Rellenar celda vacía de la card **Sistema** (estado de red global / versión / mini-gauges).
+- **CI/CD** (GitHub Actions): build backend + `tsc`, `flutter analyze`, tests.
 - Media (archivos locales, metadatos), Bluetooth pairing/llamadas, Cámara (marcha atrás), Voz (servicio Python), Navegación/GPS.
 - Proxy YouTube/Invidious (`POST /youtube/resolve`).
-- Salud energética de la Pi: undervoltage/throttle (leer `/sys` o `vcgencmd`) — diferenciador.
-
-### Infra / despliegue
-- Automatizar despliegue a la Raspberry Pi (un solo comando).
-- CI/CD, tests (unitarios backend, widget tests Flutter).
 
 ## Cómo arrancar (resumen)
 ```bash

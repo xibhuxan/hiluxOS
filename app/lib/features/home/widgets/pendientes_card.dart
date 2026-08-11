@@ -39,7 +39,7 @@ class PendientesCard extends ConsumerWidget {
                     padding: EdgeInsets.zero,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: tasks.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(color: AppColors.surfaceVariant, height: 1),
                     itemBuilder: (context, i) {
                       final t = tasks[i];

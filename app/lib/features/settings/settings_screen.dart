@@ -48,7 +48,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: const EdgeInsets.all(16),
                   sliver: SliverList.separated(
                     itemCount: keys.length,
-                    separatorBuilder: (_, __) => const Divider(color: AppColors.surfaceVariant),
+                    separatorBuilder: (_, _) => const Divider(color: AppColors.surfaceVariant),
                     itemBuilder: (context, i) {
                     final key = keys[i];
                     final value = state.values[key]!;

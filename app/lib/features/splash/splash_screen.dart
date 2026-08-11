@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen>
                       children: [
                         AnimatedBuilder(
                           animation: _glow,
-                          builder: (_, __) {
+                          builder: (_, _) {
                             final t = Curves.easeInOut.transform(_glow.value);
                             return Container(
                               width: 460,
@@ -116,7 +116,7 @@ class _SplashScreenState extends State<SplashScreen>
                       width: 240,
                       child: AnimatedBuilder(
                         animation: _progress,
-                        builder: (_, __) => AnimatedProgressBar(
+                        builder: (_, _) => AnimatedProgressBar(
                           value: _progress.value,
                           height: 6,
                           color: AppColors.primary,
