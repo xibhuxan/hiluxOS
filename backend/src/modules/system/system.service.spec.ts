@@ -1,5 +1,6 @@
 import { SystemService, WifiNetwork, BluetoothDevice } from './system.service';
 import { CommandRunner } from './command-runner';
+import fs from 'node:fs';
 
 /**
  * A fake CommandRunner that returns scripted stdout keyed by the joined
@@ -223,6 +224,52 @@ describe('SystemService', () => {
       const runner = fakeRunner({ 'bluetoothctl power off': '' });
       makeService(runner).setBluetooth(false);
       expect(runner.runOrThrow).toHaveBeenCalledWith('bluetoothctl', ['power', 'off']);
+    });
+  });
+
+  describe('brightness', () => {
+    let readdirSpy: jest.SpyInstance;
+    let writeSpy: jest.SpyInstance;
+
+    afterEach(() => {
+      readdirSpy?.mockRestore();
+      writeSpy?.mockRestore();
+    });
+
+    it('reads the brightness percentage from the detected backlight', () => {
+      readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue(['intel_backlight'] as never);
+      const runner = fakeRunner({
+        'cat /sys/class/backlight/intel_backlight/brightness': '31200\n',
+        'cat /sys/class/backlight/intel_backlight/max_brightness': '120000\n',
+      });
+      expect(makeService(runner).getBrightness()).toEqual({ brightness: 26, maxBrightness: 120000 });
+    });
+
+    it('writes the scaled value to the detected backlight path', () => {
+      readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue(['rpi_backlight'] as never);
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined);
+      const runner = fakeRunner({
+        'cat /sys/class/backlight/rpi_backlight/max_brightness': '255\n',
+      });
+      makeService(runner).setBrightness(50);
+      expect(writeSpy).toHaveBeenCalledWith(
+        '/sys/class/backlight/rpi_backlight/brightness',
+        '128\n',
+      );
+    });
+
+    it('returns nulls when no backlight device is present', () => {
+      readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue([] as never);
+      const runner = fakeRunner({});
+      expect(makeService(runner).getBrightness()).toEqual({ brightness: null, maxBrightness: null });
+    });
+
+    it('is a no-op when no backlight device is present', () => {
+      readdirSpy = jest.spyOn(fs, 'readdirSync').mockReturnValue([] as never);
+      writeSpy = jest.spyOn(fs, 'writeFileSync').mockImplementation(() => undefined);
+      const runner = fakeRunner({});
+      makeService(runner).setBrightness(80);
+      expect(writeSpy).not.toHaveBeenCalled();
     });
   });
 });

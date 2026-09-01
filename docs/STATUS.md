@@ -1,15 +1,15 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-08-11 (Fase 1 — tests unitarios + e2e backend, widget tests Flutter)
+Última actualización: 2026-09-01 (fix brightness: regla udev genérica + auto-detección de backlight)
 
 ## Stack y ramas
 
 - **Stack**: NestJS 11 + Prisma 6 + PostgreSQL 17 (backend, host) · Flutter stable (app, host) · PostgreSQL en Docker.
 - **Versión**: `0.1.0` (`VERSION.txt`).
-- **Ramas** (todas sincronizadas con `origin`, HEAD `3d75843`):
+- **Ramas** (todas sincronizadas con `origin`, HEAD `422620f`):
   - `master` → `2c417f7` — rama de release.
   - `dev` → `2c417f7` — integración.
-  - `feature/develop` (activa) → `3d75843` — desarrollo en curso.
+  - `feature/develop` (activa) → `422620f` — desarrollo en curso.
 - Working tree limpio. Todo publicado en el remoto.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
 
@@ -18,10 +18,10 @@
 - Backend: `tsc --noEmit` → **0 errores**.
 - Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
 - **Tests**:
-  - Backend unitarios (Jest): **32 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service` (mock Prisma + fetch global).
-  - Backend e2e (Supertest): **28 tests** — `health`, `tasks`, `settings`, `radio` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
-  - Flutter: **11 tests** — `splash_screen` (render + barra de progreso), `home_screen` (4 mensajes contextuales con providers mockeados), `quick_panel` (render tiles + callbacks open/close), `widget_test` (sanity checks).
-  - **Total: 71 tests** (32 unit + 28 e2e + 11 widget). Comando e2e: `npm run test:e2e`.
+  - Backend unitarios (Jest): **58 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness).
+  - Backend e2e (Supertest): **41 tests** — `health`, `tasks`, `settings`, `radio`, `system` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
+  - Flutter: **22 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 121 tests** (58 unit + 41 e2e + 22 widget). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -63,30 +63,15 @@
 
 ## Pendiente / siguientes pasos
 
-### ⚠️ Brightness — permisos (pendiente de aplicar en el SO)
-El backend ya tiene el endpoint `/system/brightness` y el slider del Quick Panel lo usa. **Pero** `/sys/class/backlight/intel_backlight/brightness` es de `root:root` con permisos `-rw-r--r--`, así que el backend (corre como `xibhu`) no puede escribir. Ya está creada la regla udev (`scripts/99-backlight.rules`) y el `setup.sh` actualizado, pero **falta aplicar los permisos manualmente** tras el reinicio:
-
-```bash
-# 1. Asegurar que tu usuario está en el grupo video
-sudo usermod -aG video $USER
-# 2. Dar permisos ahora mismo (sin reiniciar)
-sudo chmod g+w /sys/class/backlight/intel_backlight/brightness
-sudo chown :video /sys/class/backlight/intel_backlight/brightness
-# 3. Verificar
-ls -la /sys/class/backlight/intel_backlight/brightness
-#    Debe mostrar: -rw-rw-r--. 1 root video ...
-```
-
-Después de eso, el slider de brillo en el Quick Panel debería escribir y persistir correctamente.
-
 ### Fase 1 — Protección (tests) ✅
-- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio`, `system` (54 tests, mock Prisma + `CommandRunner` fake para nmcli/bluetoothctl). ✅
+- **Tests unitarios backend (Jest)**: `health`, `settings`, `tasks`, `radio`, `system` (58 tests, mock Prisma + `CommandRunner` fake para nmcli/bluetoothctl; `fs` mockeado para brightness). ✅
 - **Tests e2e backend (Supertest)**: `health`, `tasks`, `settings`, `radio`, `system` controllers (41 tests, AppModule completa con Prisma + EventsGateway + SystemService mockeados). ✅
 - **Widget tests Flutter**: `splash`, `home`, `quick_panel`, `pendientes_card`, `network_settings` (22 tests, providers mockeados con fakes que evitan red/timers). ✅
+- **Total: 121 tests** (58 unit + 41 e2e + 22 widget).
 - **Siguiente**: ampliar cobertura — más pantallas Flutter (radio, system), controllers restantes (notifications, event-log, updates).
 
 ### Fase 2 — Cerrar lo casi-terminado
-- **Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).
+- ~~**Permisos de brightness**: automatizar el paso de `chmod`/`chown` (regla udev aplicable sin paso manual).~~ ✅ — regla udev genérica (`SUBSYSTEM=="backlight"`, sin filtrar por `KERNEL`) que cubre `intel_backlight` y `rpi_backlight`; `setup.sh` ahora dispara `udevadm trigger` tras instalarla para que se aplique sin reiniciar y muestra los permisos resultantes. Backend refactorizado: `backlightDir` auto-detecta el primer `/sys/class/backlight/*` (no más hardcodeo de `intel_backlight`), cacheado. 4 tests nuevos cubren lectura, escritura con path dinámico y caso sin backlight.
 - ~~**Pantalla de configuración WiFi/Bluetooth**: los providers ya existen y funcionan, hoy solo informativos en la card Sistema. Conectarlos a una pantalla aparte.~~ ✅ — secciones `WifiSection` y `BluetoothSection` dentro de Settings: toggle, escaneo, lista de redes/dispositivos, diálogo de contraseña WiFi (`WifiPasswordDialog`) y diálogo de PIN BT (`BtPinDialog`). Backend con scan/connect/disconnect/forget/pair/remove vía nmcli/bluetoothctl. Teclado en pantalla `virtual_keypad` para meter texto en la RPi táctil.
 - ~~**CRUD de Pendientes desde la UI**: el backend ya soporta POST/PUT/DELETE; la UI solo lista/completa. Rellenar crear/editar.~~ ✅ — botón `+` para crear, tap en título para editar, icono papelera para borrar (con confirmación). `TasksService` ahora lanza `NotFoundException` (404) en Prisma `P2025` en vez de propagar 500.
 - ~~Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).~~ ✅ — el backend ya ordena por `priority desc` en `findAll()`; la UI ahora muestra la prioridad y permite editarla con un slider 0–5 en el diálogo.

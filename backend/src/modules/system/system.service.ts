@@ -173,9 +173,29 @@ export class SystemService {
 
   // ---- Brightness (sysfs backlight) ----
 
+  /**
+   * Resolve the active backlight sysfs directory once and cache it. Scans
+   * `/sys/class/backlight/*` so it works on any hardware (intel_backlight on
+   * laptops, rpi_backlight on the Pi, ...). Returns null when no backlight is
+   * present, in which case the brightness getters degrade gracefully.
+   */
+  private get backlightDir(): string | null {
+    if (this._backlightDir !== undefined) return this._backlightDir;
+    try {
+      const entries = fs.readdirSync('/sys/class/backlight');
+      this._backlightDir = entries.length ? `/sys/class/backlight/${entries[0]}` : null;
+    } catch {
+      this._backlightDir = null;
+    }
+    return this._backlightDir;
+  }
+  private _backlightDir: string | null | undefined;
+
   getBrightness(): { brightness: number | null; maxBrightness: number | null } {
-    const raw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/brightness']);
-    const maxRaw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    const dir = this.backlightDir;
+    if (!dir) return { brightness: null, maxBrightness: null };
+    const raw = this.cmd.run('cat', [`${dir}/brightness`]);
+    const maxRaw = this.cmd.run('cat', [`${dir}/max_brightness`]);
     if (raw === null || maxRaw === null) return { brightness: null, maxBrightness: null };
     const current = parseInt(raw.trim(), 10);
     const max = parseInt(maxRaw.trim(), 10);
@@ -185,13 +205,15 @@ export class SystemService {
 
   setBrightness(pct: number | undefined): void {
     if (pct === undefined) return;
-    const maxRaw = this.cmd.run('cat', ['/sys/class/backlight/intel_backlight/max_brightness']);
+    const dir = this.backlightDir;
+    if (!dir) return;
+    const maxRaw = this.cmd.run('cat', [`${dir}/max_brightness`]);
     if (maxRaw === null) return;
     const max = parseInt(maxRaw.trim(), 10);
     if (isNaN(max) || max === 0) return;
     const target = Math.round((Math.max(0, Math.min(100, pct)) / 100) * max);
     try {
-      fs.writeFileSync('/sys/class/backlight/intel_backlight/brightness', `${target}\n`);
+      fs.writeFileSync(`${dir}/brightness`, `${target}\n`);
     } catch (err) {
       console.error(`[system] Failed to write brightness: ${err}`);
     }
