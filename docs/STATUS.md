@@ -1,6 +1,6 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-09-01 (fix brightness: regla udev genérica + auto-detección de backlight)
+Última actualización: 2026-09-01 (fix radio favoritos/historial + visualizador + ADR-0002 centralita ESP32)
 
 ## Stack y ramas
 
@@ -20,8 +20,8 @@
 - **Tests**:
   - Backend unitarios (Jest): **58 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness).
   - Backend e2e (Supertest): **41 tests** — `health`, `tasks`, `settings`, `radio`, `system` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
-  - Flutter: **22 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 121 tests** (58 unit + 41 e2e + 22 widget). Comando e2e: `npm run test:e2e`.
+  - Flutter: **31 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 130 tests** (58 unit + 41 e2e + 31 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -35,7 +35,7 @@
 - `GET /api/system/network/bluetooth/scan`, `POST .../bluetooth/pair` (mac+pin opcional), `POST .../bluetooth/connect`, `POST .../bluetooth/disconnect`, `POST .../bluetooth/remove` — escaneo, emparejamiento (con PIN vía stdin), conexión, desconexión y olvido de dispositivos BT. `SystemService` refactorizado con `CommandRunner` inyectable (mockeable en tests).
 - `GET|PUT /api/system/brightness` — brillo real vía sysfs (lectura/escritura en `/sys/class/backlight/intel_backlight/brightness`).
 - `GET|PUT|DELETE /api/settings` — CRUD de ajustes.
-- `GET /api/radio/stations/search`, `/radio/favorites` (GET/POST/DELETE), `/radio/history`, `/radio/stream/:id` — Radio Browser API.
+- `GET /api/radio/stations/search`, `/radio/favorites` (GET/POST/DELETE), `/radio/history`, `/radio/stream/:id` — Radio Browser API. **Fix 2026-09-01**: favoritos e historial persistían mal por 3 bugs encadenados — (1) `Station.toJson()` enviaba `id` → 400 `forbidNonWhitelisted`; (2)+(3) `upsert` Prisma 6.x con `update: {}` vacío enrutaba a create → 500 unique constraint. Los upserts ahora llevan `update` no vacío (lección aplicable a todo Prisma 6.x del proyecto).
 - `GET /api/tasks` (+ POST/PUT/DELETE) — módulo Pendientes, con seed (ITV, aceite, update, backup).
 - `GET /api/notifications` — sistema de notificaciones (creación, listado, marcar leída = borrar).
 - `GET /api/event-log` — registro de eventos del sistema.
@@ -45,6 +45,7 @@
 
 ### Flutter (`app/`)
 - Splash animado (logo +50%, glow pulsante, barra animada, transición).
+- Radio: búsqueda Radio Browser, favoritos, historial, playback (`audioplayers`) y **visualizador de espectro** con ring buffer + 15 estilos (commit 9644ac3).
 - Shell: panel superior fijo opaco con **volumen a la izquierda** (slider 180px táctil, funcional), reloj, Home, Apps; cajón de apps (end drawer) con tiles.
 - **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Home: barra contextual + 4 cards (Estado actual, Sistema, Vehículo, Pendientes) en grid 2×2 sin scroll.
@@ -77,14 +78,14 @@
 - ~~Ordenar pendientes por prioridad (el backend tiene `priority`, no se usa en UI).~~ ✅ — el backend ya ordena por `priority desc` en `findAll()`; la UI ahora muestra la prioridad y permite editarla con un slider 0–5 en el diálogo.
 
 ### Fase 3 — Diferenciador (HAL)
-- **HAL mock-first**: módulos `Vehicle`/`Power`/`GPIO` con interfaz + implementación mock (toggle por env), siguiendo la arquitectura de sustitución de `ARCHITECTURE.md`. Desbloquea la card "Vehículo" (hoy "No conectado").
+- **HAL mock-first**: módulos `Vehicle`/`Power`/`GPIO` con interfaz + implementación mock (toggle por env), siguiendo la arquitectura de sustitución de `ARCHITECTURE.md`. Desbloquea la card "Vehículo" (hoy "No conectado"). **Update 2026-09-01 (ADR-0002)**: el coche no tiene OBD-II — el driver real será `ESP32VehicleService` (centralita paralela ESP32/Arduino conectada por WiFi/serial). El HAL mock-first no cambia y puede construirse sin esperar al hardware.
 - **Salud energética de la Pi**: undervoltage/throttle leyendo `/sys` o `vcgencmd`.
 
 ### Fase 4 — Pulido y producto
+- ~~**Media (archivos locales, metadatos)**~~ 🚧 — en progreso: modelo `Track` + `MediaLibraryService` (escaneo ffprobe) + `/media/*` API + pantalla Flutter con biblioteca, búsqueda y now-playing con seek. (Bluetooth pairing/llamadas, Cámara, Voz, Navegación/GPS siguen pendientes.)
 - Pulido UI de **Radio** (shimmer en búsqueda, entrada animada de ítems, "pop" de favorito, now-playing vistoso), **System**, **Settings** (cabeceras, feedback).
 - Rellenar celda vacía de la card **Sistema** (estado de red global / versión / mini-gauges).
 - **CI/CD** (GitHub Actions): build backend + `tsc`, `flutter analyze`, tests.
-- Media (archivos locales, metadatos), Bluetooth pairing/llamadas, Cámara (marcha atrás), Voz (servicio Python), Navegación/GPS.
 - Proxy YouTube/Invidious (`POST /youtube/resolve`).
 
 ## Cómo arrancar (resumen)
