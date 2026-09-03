@@ -23,7 +23,7 @@ export class EventLogService {
         payload: e.payload,
         createdAt: e.createdAt.toISOString(),
       })),
-      nextCursor: hasMore ? items[items.length - 1].id : null,
+      nextCursor: hasMore ? items[items.length - 1].id.toString() : null,
     };
   }
 
