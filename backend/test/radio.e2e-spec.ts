@@ -170,7 +170,12 @@ describe('RadioController (e2e)', () => {
       expect(res.body).toEqual(station);
       expect(prisma.radioStation.upsert).toHaveBeenCalledWith({
         where: { url: 'http://a.stream' },
-        update: {},
+        // Non-empty update (no `url`, it's the where key): refreshes metadata
+        // and avoids the Prisma 6.x empty-update upsert bug.
+        update: expect.objectContaining({
+          name: 'Rock FM',
+          tags: [],
+        }),
         create: expect.objectContaining({
           name: 'Rock FM',
           url: 'http://a.stream',
@@ -179,7 +184,8 @@ describe('RadioController (e2e)', () => {
       });
       expect(prisma.favorite.upsert).toHaveBeenCalledWith({
         where: { stationId: 's1' },
-        update: {},
+        // Non-empty update to avoid the Prisma 6.x empty-update bug.
+        update: { stationId: 's1' },
         create: { stationId: 's1' },
       });
     });
