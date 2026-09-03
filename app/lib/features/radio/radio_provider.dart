@@ -4,6 +4,11 @@ import '../../shared/models/station.dart';
 import 'audio_player_provider.dart';
 import 'spectrum_provider.dart';
 
+/// Sentinel for `copyWith(error: ...)`: distinguishes "not passed" (keep the
+/// current error) from an explicit `null` (clear the error). Without it, any
+/// `copyWith` call that omits `error` silently cleared a previously set error.
+const _unsetError = Object();
+
 class RadioState {
   final List<Station> searchResults;
   final List<Station> favorites;
@@ -30,7 +35,7 @@ class RadioState {
     Station? current,
     bool? isPlaying,
     bool? loading,
-    String? error,
+    Object? error = _unsetError,
   }) =>
       RadioState(
         searchResults: searchResults ?? this.searchResults,
@@ -39,7 +44,7 @@ class RadioState {
         current: current ?? this.current,
         isPlaying: isPlaying ?? this.isPlaying,
         loading: loading ?? this.loading,
-        error: error,
+        error: error == _unsetError ? this.error : error as String?,
       );
 }
 

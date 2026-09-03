@@ -151,5 +151,22 @@ void main() {
           'resume',
         ]));
   });
+
+  group('RadioState.copyWith error sentinel', () {
+    test('copyWith without error keeps a previously set error', () {
+      final s = RadioState(error: 'algo falló').copyWith(loading: true);
+      expect(s.error, 'algo falló');
+    });
+
+    test('copyWith(error: null) explicitly clears the error', () {
+      final s = RadioState(error: 'algo falló').copyWith(error: null);
+      expect(s.error, isNull);
+    });
+
+    test('copyWith(error: msg) sets a new error', () {
+      final s = RadioState(error: 'viejo').copyWith(error: 'nuevo');
+      expect(s.error, 'nuevo');
+    });
+  });
 }
 
