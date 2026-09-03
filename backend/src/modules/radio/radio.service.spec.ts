@@ -172,7 +172,11 @@ describe('RadioService', () => {
       expect(result).toEqual(created);
       expect(prisma.radioStation.upsert).toHaveBeenCalledWith({
         where: { url: 'http://a/stream' },
-        update: {},
+        update: {
+          name: 'Radio One',
+          favicon: 'http://a/favicon.ico', country: 'Spain',
+          codec: 'MP3', bitrate: 128, tags: ['rock'],
+        },
         create: {
           name: 'Radio One', url: 'http://a/stream',
           favicon: 'http://a/favicon.ico', country: 'Spain',
@@ -181,7 +185,7 @@ describe('RadioService', () => {
       });
       expect(prisma.favorite.upsert).toHaveBeenCalledWith({
         where: { stationId: 's1' },
-        update: {},
+        update: { stationId: 's1' },
         create: { stationId: 's1' },
       });
     });
@@ -240,7 +244,11 @@ describe('RadioService', () => {
 
       expect(prisma.radioStation.upsert).toHaveBeenCalledWith({
         where: { url: 'http://a/stream' },
-        update: {},
+        update: {
+          name: 'Radio One',
+          favicon: undefined, country: undefined, codec: undefined,
+          bitrate: undefined, tags: [],
+        },
         create: {
           name: 'Radio One', url: 'http://a/stream',
           favicon: undefined, country: undefined, codec: undefined,

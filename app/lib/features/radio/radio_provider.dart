@@ -85,12 +85,16 @@ class RadioNotifier extends StateNotifier<RadioState> {
 
   Future<void> toggleFavorite(Station station) async {
     final isFav = state.favorites.any((s) => s.url == station.url);
-    if (isFav) {
-      await _api.delete('/radio/favorites', query: {'url': station.url});
-    } else {
-      await _api.post('/radio/favorites', data: station.toJson());
+    try {
+      if (isFav) {
+        await _api.delete('/radio/favorites', query: {'url': station.url});
+      } else {
+        await _api.post('/radio/favorites', data: station.toJson());
+      }
+      await loadFavorites();
+    } catch (e) {
+      state = state.copyWith(error: 'No se pudo actualizar favoritos: $e');
     }
-    await loadFavorites();
   }
 
   Future<void> play(Station station) async {
@@ -98,8 +102,11 @@ class RadioNotifier extends StateNotifier<RadioState> {
     await _audio.play(station.url);
     // Start backend spectrum analysis so the visualizer gets real FFT data.
     _spectrum.start(station.url);
-    await _api.post('/radio/history', data: station.toJson());
-    await loadHistory();
+    // Record history — best-effort: a failure here must not interrupt playback.
+    try {
+      await _api.post('/radio/history', data: station.toJson());
+      await loadHistory();
+    } catch (_) {}
   }
 
   Future<void> pause() async {

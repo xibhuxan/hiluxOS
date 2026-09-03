@@ -127,9 +127,19 @@ export class RadioService {
 
   async addFavorite(station: StationInput): Promise<StationDto> {
     // Upsert the station record (keyed by url), then favorite it.
+    // Note: a non-empty `update` is required — Prisma 6.x has a bug where an
+    // empty `update: {}` causes it to route to the create path even when the
+    // record exists, producing a "Unique constraint failed" error.
     const created = await this.prisma.radioStation.upsert({
       where: { url: station.url },
-      update: {},
+      update: {
+        name: station.name,
+        favicon: station.favicon,
+        country: station.country,
+        codec: station.codec,
+        bitrate: station.bitrate,
+        tags: station.tags ?? [],
+      },
       create: {
         name: station.name,
         url: station.url,
@@ -142,7 +152,10 @@ export class RadioService {
     });
     await this.prisma.favorite.upsert({
       where: { stationId: created.id },
-      update: {},
+      // Non-empty update to avoid the Prisma 6.x empty-update bug (same as
+      // the radioStation upsert above). createdAt has @@default(now()) so
+      // we just touch the relation — no actual field changes needed.
+      update: { stationId: created.id },
       create: { stationId: created.id },
     });
     return this.toDto(created);
@@ -158,7 +171,14 @@ export class RadioService {
   async recordHistory(station: StationInput): Promise<void> {
     const created = await this.prisma.radioStation.upsert({
       where: { url: station.url },
-      update: {},
+      update: {
+        name: station.name,
+        favicon: station.favicon,
+        country: station.country,
+        codec: station.codec,
+        bitrate: station.bitrate,
+        tags: station.tags ?? [],
+      },
       create: {
         name: station.name,
         url: station.url,

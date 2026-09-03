@@ -30,8 +30,12 @@ class Station {
         tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? const [],
       );
 
+  /// Serializes the station for POSTing to the backend (favorites/history).
+  /// Note: `id` is intentionally omitted — the backend's ValidationPipe runs
+  /// with `forbidNonWhitelisted: true`, and `FavoriteStationDto` has no `id`
+  /// field. Sending it would cause a 400 "property id should not exist".
+  /// The `id` is generated/managed by the backend (DB or radio-browser API).
   Map<String, dynamic> toJson() => {
-        'id': id,
         'name': name,
         'url': url,
         'favicon': favicon,
