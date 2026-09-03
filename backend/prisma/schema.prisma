@@ -48,11 +48,13 @@ model Favorite {
   @@map("favorites")
 }
 
-/// An entry in the playback history (radio + future media).
+/// An entry in the playback history (radio + media).
 model History {
   id        String   @id @default(uuid())
   stationId String?
   station   RadioStation? @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  trackId   String?
+  track     Track?        @relation(fields: [trackId], references: [id], onDelete: SetNull)
   kind      String   @default("radio") // "radio" | "media" | ...
   title     String
   url       String
@@ -60,6 +62,35 @@ model History {
 
   @@index([playedAt])
   @@map("history")
+}
+
+/// A local music file indexed by the media library scanner.
+model Track {
+  id          String    @id @default(uuid())
+  /// Absolute filesystem path of the file (unique).
+  path        String    @unique
+  title       String
+  artist      String?
+  album       String?
+  genre       String?
+  /// Duration in seconds, from ffprobe.
+  durationSec Float
+  trackNo     Int?
+  year        Int?
+  bitrate     Int?
+  codec       String?
+  sizeBytes   BigInt
+  /// File mtime (ms epoch) at scan time — used for incremental rescans.
+  mtimeMs     BigInt
+  playCount   Int       @default(0)
+  lastPlayedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  history     History[]
+
+  @@index([artist])
+  @@index([album])
+  @@map("tracks")
 }
 
 /// Append-only log of backend events (useful for diagnostics).
