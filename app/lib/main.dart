@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:virtual_keypad/virtual_keypad.dart';
@@ -12,6 +13,23 @@ void main() {
   runApp(const ProviderScope(child: HiluxOSApp()));
 }
 
+/// Scroll behavior that enables drag-to-scroll from touch pointers on desktop
+/// (Linux/Wayland). Flutter's default [MaterialScrollBehavior] only honors
+/// touch dragging on mobile platforms; on desktop it relies on the mouse wheel.
+/// The in-vehicle display is touch-only and has no scroll wheel, so we add
+/// [PointerDeviceKind.touch] (and stylus/trackpad inertial) to the drag set
+/// everywhere in the app.
+class _TouchScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+        PointerDeviceKind.trackpad,
+      };
+}
+
 class HiluxOSApp extends ConsumerWidget {
   const HiluxOSApp({super.key});
 
@@ -22,6 +40,7 @@ class HiluxOSApp extends ConsumerWidget {
       title: 'hiluxOS',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
+      scrollBehavior: _TouchScrollBehavior(),
       routerConfig: router,
     );
   }

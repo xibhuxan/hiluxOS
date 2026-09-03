@@ -32,13 +32,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                    child: const Text('Ajustes',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-                  ),
-                ),
                 // Update section (always visible at the top).
                 SliverToBoxAdapter(
                   child: Padding(

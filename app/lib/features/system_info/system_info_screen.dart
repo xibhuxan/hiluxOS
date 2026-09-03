@@ -38,12 +38,6 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4, bottom: 8),
-                        child: Text('Sistema',
-                            style:
-                                TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-                      ),
                       if (state.info != null) _infoCard('Identity', _infoRows(state.info!)),
                       const SizedBox(height: 12),
                       if (state.resources != null)

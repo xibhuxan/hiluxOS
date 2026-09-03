@@ -12,8 +12,9 @@ import 'widgets/quick_panel.dart';
 /// Main layout: a KDE-style top status panel, the routed body, and an app
 /// drawer (cajón) opened from the panel's Apps button.
 class AppShell extends ConsumerStatefulWidget {
-  const AppShell({super.key, required this.child});
+  const AppShell({super.key, required this.child, required this.routeLocation});
   final Widget child;
+  final String routeLocation;
 
   @override
   ConsumerState<AppShell> createState() => AppShellState();
@@ -68,6 +69,7 @@ class AppShellState extends ConsumerState<AppShell> {
         child: SafeArea(
           bottom: false,
           child: StatusPanel(
+            routeLocation: widget.routeLocation,
             onApps: () => _scaffoldKey.currentState?.openEndDrawer(),
             onHome: () => context.go('/'),
             onQuickPanel: toggleQuickPanel,

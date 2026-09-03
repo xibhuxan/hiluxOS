@@ -10,16 +10,33 @@ import '../../features/system_info/system_polling_provider.dart';
 class StatusPanel extends ConsumerWidget {
   const StatusPanel({
     super.key,
+    required this.routeLocation,
     required this.onApps,
     required this.onHome,
     required this.onQuickPanel,
     required this.onNotifications,
   });
 
+  final String routeLocation;
   final VoidCallback onApps;
   final VoidCallback onHome;
   final VoidCallback onQuickPanel;
   final VoidCallback onNotifications;
+
+  /// Maps a route path to the app name shown in the top bar. The home screen
+  /// (`/`) intentionally returns null so the bar shows no title there.
+  static String? _titleFor(String location) {
+    switch (location) {
+      case '/radio':
+        return 'Radio';
+      case '/system':
+        return 'Sistema';
+      case '/settings':
+        return 'Ajustes';
+      default:
+        return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +70,8 @@ class StatusPanel extends ConsumerWidget {
               Text(date, style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.1)),
             ],
           ),
+          // Current app title (blank on the home screen so nothing shows)
+          ...?_titleWidget(),
           const Spacer(),
           // Actions
           // Notification bell with badge
@@ -74,6 +93,23 @@ class StatusPanel extends ConsumerWidget {
   String _weekday(int i) => const ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i - 1];
   String _month(int i) =>
       const ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][i - 1];
+
+  /// Builds the current-app title segment for the top bar. Returns null (so
+  /// nothing renders) on the home screen, or a vertical separator + title on
+  /// app screens. Using `...?` spread in the children list handles the null
+  /// case cleanly.
+  List<Widget>? _titleWidget() {
+    final title = _titleFor(routeLocation);
+    if (title == null) return null;
+    return [
+      const SizedBox(width: 18),
+      Container(width: 1, height: 32, color: AppColors.surfaceVariant),
+      const SizedBox(width: 18),
+      Text(title,
+          style: const TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+    ];
+  }
 }
 
 class _PanelButton extends StatelessWidget {

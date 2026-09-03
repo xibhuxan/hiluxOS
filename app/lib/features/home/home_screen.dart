@@ -19,15 +19,12 @@ class HomeScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Small header + contextual one-liner (evolves toward the AI assistant).
+        // Contextual one-liner (evolves toward the AI assistant). The screen
+        // title ("Inicio") now lives in the top status bar, so we only show
+        // the contextual status here.
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text('Inicio',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.muted, letterSpacing: 2)),
-            const SizedBox(width: 12),
-            const Text('·', style: TextStyle(color: AppColors.surfaceVariant)),
-            const SizedBox(width: 12),
             Expanded(
               child: Text(contextLine,
                   maxLines: 1,

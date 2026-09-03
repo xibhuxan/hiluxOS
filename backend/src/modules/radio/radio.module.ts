@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
+import { EventsModule } from '../events/events.module';
 import { RadioController } from './radio.controller';
 import { RadioService } from './radio.service';
+import { SpectrumController } from './spectrum.controller';
+import { SpectrumService } from './spectrum.service';
 
 @Module({
-  controllers: [RadioController],
-  providers: [RadioService],
+  imports: [EventsModule],
+  controllers: [RadioController, SpectrumController],
+  providers: [RadioService, SpectrumService],
 })
 export class RadioModule {}

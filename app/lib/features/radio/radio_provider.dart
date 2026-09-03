@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../shared/models/station.dart';
 import 'audio_player_provider.dart';
+import 'spectrum_provider.dart';
 
 class RadioState {
   final List<Station> searchResults;
@@ -43,9 +44,10 @@ class RadioState {
 }
 
 class RadioNotifier extends StateNotifier<RadioState> {
-  RadioNotifier(this._api, this._audio) : super(RadioState());
+  RadioNotifier(this._api, this._audio, this._spectrum) : super(RadioState());
   final ApiClient _api;
   final AudioPlayerService _audio;
+  final SpectrumNotifier _spectrum;
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
@@ -94,6 +96,8 @@ class RadioNotifier extends StateNotifier<RadioState> {
   Future<void> play(Station station) async {
     state = state.copyWith(current: station, isPlaying: true);
     await _audio.play(station.url);
+    // Start backend spectrum analysis so the visualizer gets real FFT data.
+    _spectrum.start(station.url);
     await _api.post('/radio/history', data: station.toJson());
     await loadHistory();
   }
@@ -106,14 +110,28 @@ class RadioNotifier extends StateNotifier<RadioState> {
   Future<void> resume() async {
     await _audio.resume();
     state = state.copyWith(isPlaying: true);
+    // Resume spectrum analysis if we have a current station.
+    if (state.current != null) {
+      _spectrum.start(state.current!.url);
+    }
   }
 
   Future<void> stop() async {
     await _audio.stop();
-    state = state.copyWith(isPlaying: false, current: null);
+    // Stop backend spectrum analysis — no point decoding audio nobody hears.
+    await _spectrum.stop();
+    // Keep the current station selected (so the now-playing card and its
+    // play button stay visible) — only stop playback. `resume()` will
+    // re-load the stream URL. Clearing `current` here is what made the
+    // play button disappear and forced the user to re-pick the station.
+    state = state.copyWith(isPlaying: false);
   }
 }
 
 final radioProvider = StateNotifierProvider<RadioNotifier, RadioState>(
-  (ref) => RadioNotifier(ref.watch(apiClientProvider), ref.watch(audioPlayerProvider)),
+  (ref) => RadioNotifier(
+    ref.watch(apiClientProvider),
+    ref.watch(audioPlayerProvider),
+    ref.watch(spectrumProvider.notifier),
+  ),
 );

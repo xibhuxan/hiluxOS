@@ -11,9 +11,13 @@ class RadioScreen extends ConsumerStatefulWidget {
   ConsumerState<RadioScreen> createState() => _RadioScreenState();
 }
 
-class _RadioScreenState extends ConsumerState<RadioScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+/// Which list source is shown in the right panel.
+enum _Source { search, favorites, history }
+
+class _RadioScreenState extends ConsumerState<RadioScreen> {
   final _query = TextEditingController();
+  bool _searchPanelOpen = true;
+  _Source _source = _Source.search;
 
   @override
   void initState() {
@@ -26,7 +30,6 @@ class _RadioScreenState extends ConsumerState<RadioScreen> with SingleTickerProv
 
   @override
   void dispose() {
-    _tabs.dispose();
     _query.dispose();
     super.dispose();
   }
@@ -35,117 +38,201 @@ class _RadioScreenState extends ConsumerState<RadioScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     final state = ref.watch(radioProvider);
     return Scaffold(
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 8),
-            child: Row(
-              children: [
-                const Text('Radio',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-              ],
-            ),
-          ),
-          TabBar(
-            controller: _tabs,
-            isScrollable: false,
-            tabs: const [Tab(text: 'Search'), Tab(text: 'Favorites'), Tab(text: 'History')],
-          ),
-          const SizedBox(height: 12),
-          _nowPlaying(state),
+          // ── Left column: now-playing + visualizer + controls ──
           Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                _searchTab(state),
-                _listTab(state.favorites, emptyText: 'No favorites yet'),
-                _listTab(state.history, emptyText: 'No history yet'),
-              ],
-            ),
+            flex: 5,
+            child: _leftColumn(state),
           ),
+          // ── Right column: search / favorites / history (collapsible) ──
+          _rightColumn(state),
         ],
       ),
     );
   }
 
-  Widget _nowPlaying(RadioState state) {
-    if (state.current == null) return const SizedBox(height: 0);
+  /// Left column: station info, spectrum visualizer (full-height protagonist),
+  /// and playback controls laid out vertically.
+  Widget _leftColumn(RadioState state) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (state.current != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(state.current!.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                  if (state.current!.country != null)
+                    Text(state.current!.country!, style: const TextStyle(color: AppColors.muted)),
+                ],
+              ),
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text('Selecciona una emisora',
+                    style: TextStyle(color: AppColors.muted, fontSize: 16)),
+              ),
+            ),
+          // Spectrum visualizer — the protagonist. Fills remaining space.
+          Expanded(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: SpectrumVisualizer(
+                  active: state.isPlaying,
+                  showStyleButton: true,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _controlsRow(state),
+        ],
+      ),
+    );
+  }
+
+  /// Playback controls: stop, play/pause, favorite, and panel toggle.
+  Widget _controlsRow(RadioState state) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.stop_circle_outlined, color: AppColors.danger, size: 36),
+          onPressed: state.current == null ? null : () => ref.read(radioProvider.notifier).stop(),
+        ),
+        IconButton(
+          iconSize: 56,
+          icon: Icon(
+            state.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+            color: AppColors.primary,
+          ),
+          onPressed: state.current == null
+              ? null
+              : () {
+                  final n = ref.read(radioProvider.notifier);
+                  state.isPlaying ? n.pause() : n.resume();
+                },
+        ),
+        IconButton(
+          icon: Icon(
+            state.current != null && state.favorites.any((s) => s.url == state.current!.url)
+                ? Icons.favorite
+                : Icons.favorite_border,
+            color: AppColors.danger,
+            size: 36,
+          ),
+          onPressed: state.current == null
+              ? null
+              : () => ref.read(radioProvider.notifier).toggleFavorite(state.current!),
+        ),
+        IconButton(
+          tooltip: _searchPanelOpen ? 'Ocultar lista' : 'Mostrar lista',
+          icon: Icon(
+            _searchPanelOpen ? Icons.chevron_right : Icons.chevron_left,
+            color: AppColors.onBackground,
+            size: 36,
+          ),
+          onPressed: () => setState(() => _searchPanelOpen = !_searchPanelOpen),
+        ),
+      ],
+    );
+  }
+
+  /// Right column: the search / favorites / history panel. Animated so it
+  /// collapses to zero width, giving the visualizer full width.
+  Widget _rightColumn(RadioState state) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOutCubic,
+      width: _searchPanelOpen ? 360 : 0,
+      child: ClipRect(
+        child: OverflowBox(
+          minWidth: 360,
+          maxWidth: 360,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 360,
+            child: _searchPanel(state),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The search panel contents: compact source selector + search field + list.
+  Widget _searchPanel(RadioState state) {
     return Card(
-      margin: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(left: 12),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            Text(state.current!.name,
-                style: const TextStyle(fontSize: 16, color: AppColors.onBackground)),
-            if (state.current!.country != null)
-              Text(state.current!.country!, style: const TextStyle(color: AppColors.muted)),
+            _sourceSelector(),
             const SizedBox(height: 12),
-            SpectrumVisualizer(active: state.isPlaying),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.stop, color: AppColors.danger),
-                  onPressed: () => ref.read(radioProvider.notifier).stop(),
-                ),
-                IconButton(
-                  iconSize: 48,
-                  icon: Icon(
-                    state.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                    color: AppColors.primary,
+            if (_source == _Source.search) ...[
+              TextField(
+                controller: _query,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (v) => ref.read(radioProvider.notifier).search(v),
+                decoration: InputDecoration(
+                  hintText: 'Buscar emisoras…',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: () => ref.read(radioProvider.notifier).search(_query.text),
                   ),
-                  onPressed: () {
-                    final n = ref.read(radioProvider.notifier);
-                    state.isPlaying ? n.pause() : n.resume();
-                  },
                 ),
-                IconButton(
-                  icon: Icon(
-                    state.favorites.any((s) => s.url == state.current!.url)
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: AppColors.danger,
-                  ),
-                  onPressed: () => ref.read(radioProvider.notifier).toggleFavorite(state.current!),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Expanded(child: _sourceList(state)),
           ],
         ),
       ),
     );
   }
 
-  Widget _searchTab(RadioState state) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          TextField(
-            controller: _query,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (v) => ref.read(radioProvider.notifier).search(v),
-            decoration: InputDecoration(
-              hintText: 'Search stations…',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: () => ref.read(radioProvider.notifier).search(_query.text),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (state.loading) const Expanded(child: Center(child: CircularProgressIndicator()))
-          else if (state.error != null)
-            Expanded(child: Center(child: Text(state.error!)))
-          else
-            Expanded(child: _listTab(state.searchResults, emptyText: 'Type to search')),
-        ],
+  /// Compact segmented button for switching between Search / Favorites / History.
+  Widget _sourceSelector() {
+    return SegmentedButton<_Source>(
+      segments: const [
+        ButtonSegment(value: _Source.search, icon: Icon(Icons.search, size: 18)),
+        ButtonSegment(value: _Source.favorites, icon: Icon(Icons.star, size: 18)),
+        ButtonSegment(value: _Source.history, icon: Icon(Icons.history, size: 18)),
+      ],
+      selected: {_source},
+      onSelectionChanged: (s) => setState(() => _source = s.first),
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity(horizontal: -3, vertical: -2),
       ),
     );
+  }
+
+  /// Renders the list for the currently selected source.
+  Widget _sourceList(RadioState state) {
+    switch (_source) {
+      case _Source.search:
+        if (state.loading) return const Center(child: CircularProgressIndicator());
+        if (state.error != null) return Center(child: Text(state.error!));
+        return _listTab(state.searchResults, emptyText: 'Escribe para buscar');
+      case _Source.favorites:
+        return _listTab(state.favorites, emptyText: 'Sin favoritos');
+      case _Source.history:
+        return _listTab(state.history, emptyText: 'Sin historial');
+    }
   }
 
   Widget _listTab(List<Station> stations, {required String emptyText}) {

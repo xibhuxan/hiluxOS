@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../lib/core/api/api_client.dart';
+import '../lib/core/api/websocket_service.dart';
 import '../lib/features/home/home_screen.dart';
 import '../lib/features/radio/audio_player_provider.dart';
 import '../lib/features/radio/radio_provider.dart';
+import '../lib/features/radio/spectrum_provider.dart';
 import '../lib/features/system_info/controls_provider.dart';
 import '../lib/features/system_info/health_provider.dart';
 import '../lib/features/system_info/internet_provider.dart';
@@ -14,6 +16,25 @@ import '../lib/features/system_info/quick_panel_provider.dart';
 import '../lib/features/system_info/system_polling_provider.dart';
 import '../lib/features/tasks/tasks_provider.dart';
 import '../lib/features/tasks/task.dart';
+
+/// A no-op WebSocketService for tests (no backend under `flutter test`).
+class _NoopWebSocketService extends WebSocketService {
+  _NoopWebSocketService() : super(url: 'ws://localhost:3000/events');
+  @override
+  void connect() {}
+  @override
+  void send(String event, dynamic data) {}
+}
+
+/// A no-op SpectrumNotifier so RadioNotifier can be constructed in tests.
+class _NoopSpectrumNotifier extends SpectrumNotifier {
+  _NoopSpectrumNotifier() : super(ApiClient(Dio()), _NoopWebSocketService());
+  @override
+  Future<void> start(String url) async {}
+  @override
+  Future<void> stop() async {}
+}
+
 
 void main() {
   // Override every polling notifier so no timers are created and no network
@@ -181,6 +202,6 @@ class _FakeBrightnessNotifier extends BrightnessNotifier {
 }
 
 class _FakeRadioNotifier extends RadioNotifier {
-  _FakeRadioNotifier() : super(ApiClient(Dio()), AudioPlayerService());
+  _FakeRadioNotifier() : super(ApiClient(Dio()), AudioPlayerService(), _NoopSpectrumNotifier());
   void setState(RadioState s) => state = s;
 }
