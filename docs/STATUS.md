@@ -18,10 +18,10 @@
 - Backend: `tsc --noEmit` → **0 errores**.
 - Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
 - **Tests**:
-  - Backend unitarios (Jest): **58 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness).
-  - Backend e2e (Supertest): **41 tests** — `health`, `tasks`, `settings`, `radio`, `system` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
-  - Flutter: **31 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `widget_test` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 130 tests** (58 unit + 41 e2e + 31 Flutter). Comando e2e: `npm run test:e2e`.
+  - Backend unitarios (Jest): **82 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan).
+  - Backend e2e (Supertest): **65 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
+  - Flutter: **42 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `media_provider`, `media_screen`, `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 189 tests** (82 unit + 65 e2e + 42 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -82,7 +82,7 @@
 - **Salud energética de la Pi**: undervoltage/throttle leyendo `/sys` o `vcgencmd`.
 
 ### Fase 4 — Pulido y producto
-- ~~**Media (archivos locales, metadatos)**~~ 🚧 — en progreso: modelo `Track` + `MediaLibraryService` (escaneo ffprobe) + `/media/*` API + pantalla Flutter con biblioteca, búsqueda y now-playing con seek. (Bluetooth pairing/llamadas, Cámara, Voz, Navegación/GPS siguen pendientes.)
+- ~~**Media (archivos locales, metadatos)**~~ ✅ 2026-09-04 — hecho: modelo `Track` + `MediaLibraryService` (escaneo incremental ffprobe, `MEDIA_DIR`) + `/media/tracks|library/scan|stream/:id (Range)|tracks/:id/play` + pantalla Flutter `/media` (biblioteca, búsqueda, now-playing con seek, reescaneo). Reproduce vía el `AudioPlayerService` compartido con radio. Pendiente de pulido: portadas/album art, cola de reproducción.
 - Pulido UI de **Radio** (shimmer en búsqueda, entrada animada de ítems, "pop" de favorito, now-playing vistoso), **System**, **Settings** (cabeceras, feedback).
 - Rellenar celda vacía de la card **Sistema** (estado de red global / versión / mini-gauges).
 - **CI/CD** (GitHub Actions): build backend + `tsc`, `flutter analyze`, tests.
