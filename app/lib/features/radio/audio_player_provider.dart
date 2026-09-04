@@ -67,6 +67,12 @@ class AudioPlayerService {
     _stopped = true;
   }
 
+  /// Seek within the currently loaded source. Radio streams ignore it; local
+  /// media files honor it (the backend serves them with Range support).
+  Future<void> seek(Duration position) async {
+    await _player.seek(position);
+  }
+
   void dispose() => _player.dispose();
 }
 
