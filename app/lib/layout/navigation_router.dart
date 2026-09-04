@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/radio/radio_screen.dart';
+import '../features/media/media_screen.dart';
 import '../features/system_info/system_info_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'app_shell.dart';
@@ -55,6 +56,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/radio',
             pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const RadioScreen()),
+          ),
+          GoRoute(
+            path: '/media',
+            pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const MediaScreen()),
           ),
           GoRoute(
             path: '/system',
