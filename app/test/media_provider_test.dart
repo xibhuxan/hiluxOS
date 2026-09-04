@@ -177,5 +177,61 @@ void main() {
       expect(MediaState(error: 'algo').copyWith(loading: true).error, 'algo');
       expect(MediaState(error: 'algo').copyWith(error: null).error, isNull);
     });
+
+    test('next/previous walk the queue the track was started from', () async {
+      final a = Track.fromJson(Map<String, dynamic>.from(trackJson));
+      final b = Track.fromJson(
+          {...trackJson, 'id': 't2', 'title': 'Test Tone B'});
+      final c = Track.fromJson({...trackJson, 'id': 't3', 'title': 'Test Tone C'});
+      final audio = _RecordingAudio();
+      final media = _TestMediaNotifier(_api((_) => {}), audio);
+
+      await media.play(b, fromQueue: [a, b, c]);
+      expect(media.state.current?.id, 't2');
+      expect(media.state.queue, hasLength(3));
+
+      final advanced = await media.next();
+      expect(advanced, isTrue);
+      expect(media.state.current?.id, 't3');
+      expect(audio.calls.last, 'play:http://localhost:3000/api/media/stream/t3');
+
+      // At the end of the queue next() reports false and keeps the track.
+      expect(await media.next(), isFalse);
+      expect(media.state.current?.id, 't3');
+
+      await media.previous();
+      expect(media.state.current?.id, 't2');
+    });
+
+    test('shuffle picks a random different track on next', () async {
+      final tracks = [
+        for (var i = 1; i <= 3; i++)
+          Track.fromJson({'id': 't$i', 'title': 'T$i', 'durationSec': 3}),
+      ];
+      final audio = _RecordingAudio();
+      final media = _TestMediaNotifier(_api((_) => {}), audio);
+
+      await media.play(tracks.first, fromQueue: tracks);
+      media.toggleShuffle();
+      expect(media.state.shuffle, isTrue);
+
+      final moved = await media.next();
+      expect(moved, isTrue);
+      expect(media.state.current?.id, isNot('t1'));
+      expect(tracks.map((t) => t.id), contains(media.state.current?.id));
+
+      media.toggleShuffle();
+      expect(media.state.shuffle, isFalse);
+    });
+
+    test('a single-track queue does not auto-loop on shuffle', () async {
+      final only = Track.fromJson(Map<String, dynamic>.from(trackJson));
+      final media = _TestMediaNotifier(_api((_) => {}), _RecordingAudio());
+
+      await media.play(only, fromQueue: [only]);
+      media.toggleShuffle();
+      expect(await media.next(), isFalse);
+      expect(media.state.current?.id, 't1');
+    });
   });
 }

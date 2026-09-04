@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/utils/config.dart';
@@ -18,6 +19,10 @@ class MediaState {
   final Duration position;
   final Duration duration;
   final String? error;
+  /// The list the current track was started from. `next()`/auto-advance pick
+  /// the next entry in it (or a random one when shuffle is on).
+  final List<Track> queue;
+  final bool shuffle;
 
   MediaState({
     this.tracks = const [],
@@ -28,6 +33,8 @@ class MediaState {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.error,
+    this.queue = const [],
+    this.shuffle = false,
   });
 
   MediaState copyWith({
@@ -39,6 +46,8 @@ class MediaState {
     Duration? position,
     Duration? duration,
     Object? error = _unsetError,
+    List<Track>? queue,
+    bool? shuffle,
   }) =>
       MediaState(
         tracks: tracks ?? this.tracks,
@@ -49,6 +58,8 @@ class MediaState {
         position: position ?? this.position,
         duration: duration ?? this.duration,
         error: error == _unsetError ? this.error : error as String?,
+        queue: queue ?? this.queue,
+        shuffle: shuffle ?? this.shuffle,
       );
 }
 
@@ -92,13 +103,19 @@ class MediaNotifier extends StateNotifier<MediaState> {
     }
   }
 
-  Future<void> play(Track track) async {
+  /// Start a track, remembering the list it came from so `next()` (and
+  /// auto-advance on completion) can continue through it.
+  Future<void> play(Track track, {List<Track>? fromQueue}) async {
+    final queue = (fromQueue ?? state.queue).isNotEmpty
+        ? (fromQueue ?? state.queue)
+        : [track];
     state = state.copyWith(
       current: track,
       isPlaying: true,
       position: Duration.zero,
       duration: Duration(seconds: track.durationSec.round()),
       error: null,
+      queue: queue,
     );
     await _audio.play(_streamUrl(track.id));
     attachPlayerListeners();
@@ -107,6 +124,43 @@ class MediaNotifier extends StateNotifier<MediaState> {
       await _api.post('/media/tracks/${track.id}/play');
     } catch (_) {}
   }
+
+  /// Jump to the next queue entry (random one if shuffle is on). Returns
+  /// false (and stops) at the end of the queue so callers can rely on it.
+  Future<bool> next() async {
+    final queue = state.queue;
+    final current = state.current;
+    if (queue.isEmpty || current == null) return false;
+    Track? pick;
+    if (state.shuffle) {
+      final candidates = queue.where((t) => t.id != current.id).toList();
+      if (candidates.isEmpty) return false;
+      pick = candidates[_rnd.nextInt(candidates.length)];
+    } else {
+      final i = queue.indexWhere((t) => t.id == current.id);
+      if (i < 0 || i + 1 >= queue.length) return false;
+      pick = queue[i + 1];
+    }
+    await play(pick);
+    return true;
+  }
+
+  /// Jump to the previous queue entry (no-op at the head of the queue).
+  Future<void> previous() async {
+    final queue = state.queue;
+    final current = state.current;
+    if (queue.isEmpty || current == null) return;
+    final i = queue.indexWhere((t) => t.id == current.id);
+    if (i > 0) await play(queue[i - 1]);
+  }
+
+  /// Toggle shuffle. When turning it off, re-seed with a determinist… no: keep
+  /// the queue as-is; order resumes deterministically from the current track.
+  void toggleShuffle() {
+    state = state.copyWith(shuffle: !state.shuffle);
+  }
+
+  final _rnd = Random();
 
   /// (Re)attach the audioplayers position/duration/complete listeners.
   /// Protected seam: tests subclass MediaNotifier to no-op this (the real
@@ -121,8 +175,10 @@ class MediaNotifier extends StateNotifier<MediaState> {
     _durSub = _audio.player.onDurationChanged.listen((d) {
       state = state.copyWith(duration: d);
     });
-    _completeSub = _audio.player.onPlayerComplete.listen((_) {
+    _completeSub = _audio.player.onPlayerComplete.listen((_) async {
       state = state.copyWith(isPlaying: false, position: Duration.zero);
+      // Auto-advance: continue the queue (random entry when shuffle is on).
+      await next();
     });
   }
 

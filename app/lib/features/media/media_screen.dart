@@ -44,12 +44,148 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(mediaProvider);
     return Scaffold(
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(flex: 5, child: _leftColumn(state)),
-          _rightColumn(state),
-        ],
+      // The folder rail only fits on wide surfaces (car screen); narrower
+      // windows get the classic two-column layout.
+      body: LayoutBuilder(builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 980;
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (wide) ...[
+              _folderTree(state),
+              const SizedBox(width: 12),
+            ],
+            Expanded(flex: 5, child: _leftColumn(state)),
+            _rightColumn(state),
+          ],
+        );
+      }),
+    );
+  }
+
+  /// The expanded folder (null = all tracks). Kept as screen state; tapping a
+  /// folder selects it, tapping the selected one collapses back to "Todo".
+  String? _openFolder;
+
+  /// Flat list of ancestor folders of [dirPath] ("a/b" → ["a", "a/b"]).
+  static List<String> _ancestorsOf(String dirPath) {
+    if (dirPath.isEmpty) return const [];
+    final out = <String>[];
+    var p = dirPath;
+    while (true) {
+      out.add(p);
+      final i = p.lastIndexOf('/');
+      if (i <= 0) break;
+      p = p.substring(0, i);
+    }
+    return out;
+  }
+
+  /// Tracks inside [folder] exactly (not its subfolders).
+  List<Track> _tracksIn(List<Track> tracks, String folder) => tracks
+      .where((t) => t.folderName == folder)
+      .toList();
+
+  /// Left rail: folder tree derived from the loaded library's relPath values.
+  /// Tap a folder → the library list shows exactly that folder's tracks (and
+  /// the queue/next/previous then run inside that folder). Ancestors of the
+  /// open folder are shown expanded; everything else stays collapsed.
+  Widget _folderTree(MediaState state) {
+    // All folder nodes (ancestors included) → count of files directly inside.
+    final counts = <String, int>{};
+    for (final t in state.tracks) {
+      final f = t.folderName;
+      if (f.isEmpty) continue;
+      var p = f;
+      while (true) {
+        if (p == f) counts[p] = (counts[p] ?? 0) + 1;
+        counts.putIfAbsent(p, () => 0);
+        final i = p.lastIndexOf('/');
+        if (i <= 0) break;
+        p = p.substring(0, i);
+      }
+    }
+    // Visible nodes: top-level always; deeper ones only when the open path
+    // is expanded through their parent.
+    final openAncestors = _openFolder == null
+        ? const <String>{}
+        : _ancestorsOf(_openFolder!).toSet();
+    final nodes = counts.keys
+        .where((d) =>
+            !d.contains('/') ||
+            openAncestors.contains(d.substring(0, d.lastIndexOf('/'))))
+        .toList()
+      ..sort();
+
+    return SizedBox(
+      width: 280,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
+                child: Text('Carpetas',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.muted)),
+              ),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _folderTile(
+                      state,
+                      label: 'Todo',
+                      icon: Icons.library_music,
+                      folder: null,
+                      count: state.tracks.length,
+                      depth: 0,
+                    ),
+                    for (final d in nodes)
+                      _folderTile(
+                        state,
+                        label: d.split('/').last,
+                        icon: d == _openFolder && _hasSubfolder(counts.keys, d)
+                            ? Icons.folder_open
+                            : Icons.folder_outlined,
+                        folder: d,
+                        count: counts[d] ?? 0,
+                        depth: d.split('/').length,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _hasSubfolder(Iterable<String> dirs, String d) =>
+      dirs.any((x) => x.length > d.length && x.startsWith('$d/'));
+
+  Widget _folderTile(
+    MediaState state, {
+    required String label,
+    required IconData icon,
+    required String? folder,
+    required int count,
+    required int depth,
+  }) {
+    final selected = _openFolder == folder;
+    return Padding(
+      padding: EdgeInsets.only(left: 8.0 * depth),
+      child: ListTile(
+        dense: true,
+        selected: selected,
+        selectedTileColor: AppColors.primary.withValues(alpha: 0.15),
+        leading: Icon(icon, size: 20, color: selected ? AppColors.primary : AppColors.muted),
+        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Text('$count',
+            style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+        onTap: () => setState(() => _openFolder = selected ? null : folder),
       ),
     );
   }
@@ -153,6 +289,13 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        IconButton(
+          iconSize: 32,
+          icon: const Icon(Icons.skip_previous),
+          onPressed:
+              state.current == null ? null : () => notifier.previous(),
+        ),
+        const SizedBox(width: 16),
         IconButton.filledTonal(
           iconSize: 36,
           icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
@@ -163,6 +306,20 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         const SizedBox(width: 16),
         IconButton(
           iconSize: 32,
+          icon: const Icon(Icons.skip_next),
+          onPressed:
+              state.current == null ? null : () => notifier.next(),
+        ),
+        const SizedBox(width: 24),
+        IconButton(
+          iconSize: 26,
+          tooltip: 'Reproducción aleatoria',
+          icon: Icon(Icons.shuffle),
+          color: state.shuffle ? AppColors.primary : AppColors.muted,
+          onPressed: notifier.toggleShuffle,
+        ),
+        IconButton(
+          iconSize: 26,
           icon: const Icon(Icons.stop),
           onPressed: state.current == null ? null : notifier.stop,
         ),
@@ -221,9 +378,15 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   Widget _libraryList(MediaState state) {
-    final tracks = _filteredOf(state.tracks);
+    // "Todo" shows every track; a selected folder shows exactly its files
+    // (subfolders stay collapsed — tap them to drill in). Either way the list
+    // doubles as the playback queue: tapping a row plays from this list, so
+    // next/previous/auto-advance stay inside what you're looking at.
+    final visible = _openFolder == null
+        ? _filteredOf(state.tracks)
+        : _filteredOf(_tracksIn(state.tracks, _openFolder!));
     if (state.loading) return const Center(child: CircularProgressIndicator());
-    if (tracks.isEmpty) {
+    if (visible.isEmpty) {
       return Center(
         child: Text(
           state.tracks.isEmpty
@@ -234,9 +397,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       );
     }
     return ListView.builder(
-      itemCount: tracks.length,
+      itemCount: visible.length,
       itemBuilder: (context, i) {
-        final t = tracks[i];
+        final t = visible[i];
         final isCurrent = state.current?.id == t.id;
         return StaggeredEntrance(
           index: i,
@@ -254,7 +417,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 : Text(t.subtitle, style: const TextStyle(color: AppColors.muted)),
             trailing: Text(_fmt(Duration(seconds: t.durationSec.round())),
                 style: const TextStyle(color: AppColors.muted)),
-            onTap: () => ref.read(mediaProvider.notifier).play(t),
+            onTap: () => ref.read(mediaProvider.notifier).play(t, fromQueue: visible),
           ),
         );
       },

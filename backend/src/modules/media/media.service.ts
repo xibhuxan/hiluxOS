@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import * as path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** How a Track row is exposed over the API (BigInt → string, dates → ISO). */
@@ -16,11 +18,24 @@ export interface TrackDto {
   codec: string | null;
   playCount: number;
   lastPlayedAt: string | null;
+  /**
+   * Path relative to MEDIA_DIR with '/' separators ('' for files at the
+   * root). Used by the client to build the folder tree from the loaded
+   * library. The absolute path stays internal.
+   */
+  relPath: string;
 }
 
 @Injectable()
 export class MediaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  private get mediaDir(): string {
+    return this.config.get<string>('MEDIA_DIR') ?? '';
+  }
 
   /**
    * List tracks, optionally filtered by a free-text `search` (title/artist/
@@ -99,7 +114,11 @@ export class MediaService {
     codec: string | null;
     playCount: number;
     lastPlayedAt: Date | null;
+    path: string;
   }): TrackDto {
+    const dir = this.mediaDir && t.path.startsWith(this.mediaDir)
+        ? t.path.slice(this.mediaDir.length)
+        : '';
     return {
       id: t.id,
       title: t.title,
@@ -113,6 +132,8 @@ export class MediaService {
       codec: t.codec,
       playCount: t.playCount,
       lastPlayedAt: t.lastPlayedAt ? t.lastPlayedAt.toISOString() : null,
+      // Normalize separators and strip the leading '/' so '' = MEDIA_DIR root.
+      relPath: dir.split(path.sep).join('/').replace(/^\//, ''),
     };
   }
 }

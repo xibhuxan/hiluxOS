@@ -23,7 +23,7 @@ class _FakeNotifier extends MediaNotifier {
   @override
   Future<void> scan() async {}
   @override
-  Future<void> play(Track track) async {}
+  Future<void> play(Track track, {List<Track>? fromQueue}) async {}
   @override
   void attachPlayerListeners() {}
 }
@@ -67,5 +67,68 @@ void main() {
     await tester.pumpAndSettle();
     // The seek bar labels render when a track is current.
     expect(find.text('0:00'), findsWidgets);
+  });
+
+  testWidgets('folder rail derives folders from relPath and filters on tap',
+      (tester) async {
+    // The folder rail needs a wide surface (>=980px) to fit; the car screen
+    // is 1280 wide.
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tracks = [
+      Track(id: 't1', title: 'Root A', durationSec: 5, relPath: 'a.mp3'),
+      Track(id: 't2', title: 'Rock B', durationSec: 5, relPath: 'Rock/b.mp3'),
+      Track(id: 't3', title: 'Jazz C', durationSec: 5, relPath: 'Jazz/c.mp3'),
+    ];
+    await tester.pumpWidget(_wrap(MediaState(tracks: tracks)));
+    await tester.pumpAndSettle();
+
+    // "Todo" plus one node per top-level folder.
+    expect(find.text('Todo'), findsOneWidget);
+    expect(find.text('Rock'), findsOneWidget);
+    expect(find.text('Jazz'), findsOneWidget);
+
+    // All tracks visible while "Todo" is selected.
+    expect(find.text('Root A'), findsOneWidget);
+    expect(find.text('Rock B'), findsOneWidget);
+
+    // Tap a folder → the list shows only that folder's files.
+    await tester.tap(find.text('Rock'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rock B'), findsOneWidget);
+    expect(find.text('Root A'), findsNothing);
+    expect(find.text('Jazz C'), findsNothing);
+
+    // Tapping the selected folder again collapses back to "Todo".
+    await tester.tap(find.text('Rock'));
+    await tester.pumpAndSettle();
+    expect(find.text('Root A'), findsOneWidget);
+  });
+
+  testWidgets('nested folders expand through the selected path', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tracks = [
+      Track(id: 't1', title: 'Deep One', durationSec: 5, relPath: 'Artista/Album/deep.mp3'),
+      Track(id: 't2', title: 'Other', durationSec: 5, relPath: 'Solo/other.mp3'),
+    ];
+    await tester.pumpWidget(_wrap(MediaState(tracks: tracks)));
+    await tester.pumpAndSettle();
+
+    // Only top-level folders are visible before drilling in.
+    expect(find.text('Artista'), findsOneWidget);
+    expect(find.text('Album'), findsNothing);
+
+    await tester.tap(find.text('Artista'));
+    await tester.pumpAndSettle();
+    // The child of the open folder shows; the unrelated tree stays hidden.
+    expect(find.text('Album'), findsOneWidget);
+    expect(find.text('Solo'), findsOneWidget); // still a top-level node
   });
 }

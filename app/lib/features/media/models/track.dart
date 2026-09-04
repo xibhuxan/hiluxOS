@@ -12,6 +12,9 @@ class Track {
   final String? codec;
   final int playCount;
   final String? lastPlayedAt;
+  /// Path relative to MEDIA_DIR ('' at the library root). Drives the folder
+  /// tree view; absent payloads (older backends) default to ''.
+  final String relPath;
 
   Track({
     required this.id,
@@ -26,6 +29,7 @@ class Track {
     this.codec,
     this.playCount = 0,
     this.lastPlayedAt,
+    this.relPath = '',
   });
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
@@ -41,7 +45,14 @@ class Track {
         codec: json['codec'] as String?,
         playCount: json['playCount'] as int? ?? 0,
         lastPlayedAt: json['lastPlayedAt'] as String?,
+        relPath: json['relPath'] as String? ?? '',
       );
+
+  /// The folder containing this file ('' = MEDIA_DIR root).
+  String get folderName {
+    final i = relPath.lastIndexOf('/');
+    return i < 0 ? '' : relPath.substring(0, i);
+  }
 
   /// "[Artist – ] Title", the display form used by list rows and now-playing.
   String get displayName =>

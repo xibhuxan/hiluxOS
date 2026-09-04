@@ -20,8 +20,8 @@
 - **Tests**:
   - Backend unitarios (Jest): **82 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan).
   - Backend e2e (Supertest): **65 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch.
-  - Flutter: **42 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `media_provider`, `media_screen`, `widget_test` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 189 tests** (82 unit + 65 e2e + 42 Flutter). Comando e2e: `npm run test:e2e`.
+  - Flutter: **52 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `media_provider` (+cola/shuffle), `media_screen` (+árbol de carpetas), `shell_title`, `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 199 tests** (82 unit + 65 e2e + 52 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -82,7 +82,7 @@
 - **Salud energética de la Pi**: undervoltage/throttle leyendo `/sys` o `vcgencmd`.
 
 ### Fase 4 — Pulido y producto
-- ~~**Media (archivos locales, metadatos)**~~ ✅ 2026-09-04 — hecho: modelo `Track` + `MediaLibraryService` (escaneo incremental ffprobe, `MEDIA_DIR`) + `/media/tracks|library/scan|stream/:id (Range)|tracks/:id/play` + pantalla Flutter `/media` (biblioteca, búsqueda, now-playing con seek, reescaneo). Reproduce vía el `AudioPlayerService` compartido con radio. Pendiente de pulido: portadas/album art, cola de reproducción.
+- ~~**Media (archivos locales, metadatos)**~~ ✅ 2026-09-04, pulido 2026-09-01 — hecho: modelo `Track` (con `relPath`) + `MediaLibraryService` (escaneo incremental ffprobe, `MEDIA_DIR`) + `/media/tracks|library/scan|stream/:id (Range)|tracks/:id/play` + pantalla Flutter `/media` (biblioteca con búsqueda, now-playing con seek, reescaneo, **árbol de carpetas lateral**, **cola** con prev/next/auto-advance y **shuffle**). Reproduce vía el `AudioPlayerService` compartido con radio. La barra superior muestra `Media — <canción>` (y `Radio — <emisora>`). Fix: resume tras completar pista re-carga la fuente (el play grande ya responde). Pendiente de pulido: portadas/album art.
 - Pulido UI de **Radio** (shimmer en búsqueda, entrada animada de ítems, "pop" de favorito, now-playing vistoso), **System**, **Settings** (cabeceras, feedback).
 - Rellenar celda vacía de la card **Sistema** (estado de red global / versión / mini-gauges).
 - **CI/CD** (GitHub Actions): build backend + `tsc`, `flutter analyze`, tests.

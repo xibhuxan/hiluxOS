@@ -52,7 +52,8 @@ describe('MediaController (e2e)', () => {
         artist: 'Hilux Soundcheck',
         durationSec: 5.0,
       });
-      // Internals (path, sizeBytes) are never exposed.
+      // Folder info is exposed relative to MEDIA_DIR; the absolute path is not.
+      expect(typeof res.body[0].relPath).toBe('string');
       expect(res.body[0].path).toBeUndefined();
       expect(res.body[0].sizeBytes).toBeUndefined();
     });

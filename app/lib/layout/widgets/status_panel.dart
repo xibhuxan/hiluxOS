@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../features/media/media_provider.dart';
 import '../../features/notifications/notification_provider.dart';
+import '../../features/radio/radio_provider.dart';
 import '../../features/system_info/controls_provider.dart';
 import '../../features/system_info/system_polling_provider.dart';
+import '../shell_title.dart';
 
 /// KDE-style top panel: volume control on the left, live clock, and
 /// Home / Apps actions on the right. System metrics live in the home cards.
@@ -23,24 +26,22 @@ class StatusPanel extends ConsumerWidget {
   final VoidCallback onQuickPanel;
   final VoidCallback onNotifications;
 
-  /// Maps a route path to the app name shown in the top bar. The home screen
-  /// (`/`) intentionally returns null so the bar shows no title there.
-  static String? _titleFor(String location) {
-    switch (location) {
-      case '/radio':
-        return 'Radio';
-      case '/system':
-        return 'Sistema';
-      case '/settings':
-        return 'Ajustes';
-      default:
-        return null;
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final now = ref.watch(clockProvider);
+
+    // Now-playing info for the top-bar title: watching the providers keeps the
+    // title live even though the shell rebuilds only on route changes. The
+    // radio/media watchers must be unconditionally created so Riverpod can
+    // rebuild the panel when playback changes while the screen is showing.
+    final radioName = ref.watch(radioProvider.select((s) => s.current?.name));
+    final mediaName = ref.watch(mediaProvider.select((s) => s.current?.displayName));
+
+    final title = shellTitleFor(
+      routeLocation,
+      radioStation: routeLocation == '/radio' ? radioName : null,
+      mediaTrack: routeLocation == '/media' ? mediaName : null,
+    );
 
     final time = '${now.hour.toString().padLeft(2, '0')}:'
         '${now.minute.toString().padLeft(2, '0')}';
@@ -71,7 +72,7 @@ class StatusPanel extends ConsumerWidget {
             ],
           ),
           // Current app title (blank on the home screen so nothing shows)
-          ...?_titleWidget(),
+          ...?_titleWidget(title),
           const Spacer(),
           // Actions
           // Notification bell with badge
@@ -98,16 +99,22 @@ class StatusPanel extends ConsumerWidget {
   /// nothing renders) on the home screen, or a vertical separator + title on
   /// app screens. Using `...?` spread in the children list handles the null
   /// case cleanly.
-  List<Widget>? _titleWidget() {
-    final title = _titleFor(routeLocation);
+  List<Widget>? _titleWidget(String? title) {
     if (title == null) return null;
     return [
       const SizedBox(width: 18),
       Container(width: 1, height: 32, color: AppColors.surfaceVariant),
       const SizedBox(width: 18),
-      Text(title,
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+        ),
+      ),
     ];
   }
 }
