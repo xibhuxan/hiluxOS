@@ -8,6 +8,7 @@ import '../lib/features/media/media_provider.dart';
 import '../lib/features/media/media_screen.dart';
 import '../lib/features/media/models/track.dart';
 import '../lib/features/radio/audio_player_provider.dart';
+import '../lib/features/radio/widgets/spectrum_visualizer.dart';
 
 /// MediaNotifier whose side effects are all no-ops: the real AudioPlayer is
 /// never instantiated (play/attach overridden without calling super) and no
@@ -174,5 +175,51 @@ void main() {
     await tester.tap(find.byTooltip('Mostrar biblioteca'));
     await tester.pumpAndSettle();
     expect(panelWidth(1), 392);
+  });
+
+  testWidgets('view picker switches the center panel between album and spectrum', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tracks = [
+      Track(id: 't1', title: 'Root A', durationSec: 5, relPath: 'a.mp3'),
+    ];
+    await tester.pumpWidget(_wrap(MediaState(tracks: tracks)));
+    await tester.pumpAndSettle();
+
+    // Default mode: album icon on the picker button, no visualizer yet.
+    expect(find.byIcon(Icons.album), findsOneWidget);
+    expect(find.byType(SpectrumVisualizer), findsNothing);
+
+    // Open the picker and switch to a spectrum style.
+    await tester.tap(find.byTooltip('Vista de reproducción'));
+    await tester.pumpAndSettle();
+    expect(find.text('Álbum'), findsOneWidget); // the album entry exists
+    await tester.tap(find.text('Barras'));
+    // NOTE: no pumpAndSettle from here on — the visualizer's Ticker runs
+    // forever, so a fixed-duration pump is the only way to "settle".
+    // (Two pumps: the first processes the tap + starts the popup's pop
+    // animation, the second lets it finish.)
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // The center panel now renders the shared visualizer.
+    expect(find.byType(SpectrumVisualizer), findsOneWidget);
+    expect(find.byIcon(Icons.equalizer), findsOneWidget); // 'bars' style icon
+
+    // Back to album mode. (onSelected fires via Navigator.pop().then(...),
+    // so it lands after the pop animation completes — each menu interaction
+    // needs its own pump pair plus a trailing one for the setState rebuild.)
+    await tester.tap(find.byTooltip('Vista de reproducción'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Álbum'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(SpectrumVisualizer), findsNothing);
+    expect(find.byIcon(Icons.album), findsOneWidget);
   });
 }

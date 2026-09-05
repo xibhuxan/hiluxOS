@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../core/utils/config.dart';
 import '../../core/widgets/staggered_entrance.dart';
+import '../radio/spectrum_provider.dart';
+import '../radio/visualizer_style.dart';
+import '../radio/widgets/spectrum_visualizer.dart';
 import 'media_provider.dart';
 import 'models/track.dart';
 
@@ -21,18 +24,32 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   bool _folderPanelOpen = true;
   bool _libraryPanelOpen = true;
 
+  /// What the center now-playing panel shows: 'album' = the track's cover
+  /// art (folder cover or ffmpeg-extracted embedded art), 'spectrum' = the
+  /// shared spectrum visualizer with real FFT data from the backend.
+  _NowPlayingMode _mode = _NowPlayingMode.album;
+
+  /// The track id the spectrum pipeline is currently analysing (mirrors
+  /// `spectrumProvider`'s URL so we only start/stop it on real changes).
+  String? _spectrumTrackId;
+
+  @override
+  void dispose() {
+    // The visualizer only runs while the Media screen exists: kill the
+    // backend ffmpeg pipeline when leaving the screen with spectrum on.
+    if (_mode == _NowPlayingMode.spectrum) {
+      ref.read(spectrumProvider.notifier).stop();
+    }
+    _query.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(mediaProvider.notifier).loadTracks();
     });
-  }
-
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
   }
 
   /// Local (client-side) filter over the loaded library.
@@ -50,6 +67,20 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(mediaProvider);
+
+    // Track changes while the visualizer is showing: re-point the backend
+    // spectrum pipeline at the new track's stream URL (same lazy pattern as
+    // radio's provider, but driven from the screen since the visualizer is
+    // a Media-screen-only concern).
+    ref.listen<MediaState>(mediaProvider, (prev, next) {
+      final id = next.current?.id;
+      if (_mode == _NowPlayingMode.spectrum &&
+          id != null &&
+          id != _spectrumTrackId) {
+        _startSpectrum(id);
+      }
+    });
+
     return Scaffold(
       // The folder rail only fits on wide surfaces (car screen); narrower
       // windows get the classic two-column layout.
@@ -259,19 +290,30 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           Expanded(
             child: Card(
               clipBehavior: Clip.antiAlias,
-              child: state.current == null
-                  ? Center(
-                      child: Icon(
-                        state.isPlaying ? Icons.graphic_eq : Icons.library_music_outlined,
-                        size: 120,
-                        color: state.isPlaying ? AppColors.primary : AppColors.muted,
-                      ),
+              // Two now-playing modes, picked from the controls-row popup:
+              // album cover (default) or the shared spectrum visualizer.
+              child: _mode == _NowPlayingMode.spectrum
+                  ? SpectrumVisualizer(
+                      active: state.isPlaying,
+                      showStyleButton: false,
                     )
-                  : _trackArt(
-                      state.current!.id,
-                      fit: BoxFit.contain,
-                      placeholder: _nowPlayingArtPlaceholder(state),
-                    ),
+                  : state.current == null
+                      ? Center(
+                          child: Icon(
+                            state.isPlaying
+                                ? Icons.graphic_eq
+                                : Icons.library_music_outlined,
+                            size: 120,
+                            color: state.isPlaying
+                                ? AppColors.primary
+                                : AppColors.muted,
+                          ),
+                        )
+                      : _trackArt(
+                          state.current!.id,
+                          fit: BoxFit.contain,
+                          placeholder: _nowPlayingArtPlaceholder(state),
+                        ),
             ),
           ),
           const SizedBox(height: 12),
@@ -408,6 +450,10 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           icon: const Icon(Icons.stop),
           onPressed: state.current == null ? null : notifier.stop,
         ),
+        // Now-playing mode picker: album art (this screen's own work) or any
+        // of the shared spectrum visualizer styles + random. Same popup
+        // pattern as Radio's style picker.
+        _modeMenuButton(),
         // Right chevron: collapse/expand the library panel.
         IconButton(
           tooltip: _libraryPanelOpen ? 'Ocultar biblioteca' : 'Mostrar biblioteca',
@@ -526,4 +572,101 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       },
     );
   }
+
+  // ── Now-playing mode picker (album art vs spectrum styles) ──────────────
+
+  /// Popup button offering the two center-panel modes: "Álbum" (the track's
+  /// cover, default) and every spectrum visualizer style (plus "Aleatorio",
+  /// which rotates styles every 12 s — the shared behavior from Radio).
+  Widget _modeMenuButton() {
+    final style = ref.watch(visualizerStyleProvider);
+    // The button icon mirrors the active mode: album icon for covers, the
+    // current style's icon (or shuffle) for the visualizer.
+    final icon = _mode == _NowPlayingMode.album
+        ? Icons.album
+        : (style.random ? Icons.shuffle : style.style.icon);
+    return PopupMenuButton<String>(
+      tooltip: 'Vista de reproducción',
+      icon: Icon(icon, color: AppColors.muted, size: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: AppColors.surfaceVariant,
+      onSelected: (v) {
+        if (v == 'album') {
+          setState(() => _mode = _NowPlayingMode.album);
+          _stopSpectrum();
+        } else if (v == 'random') {
+          setState(() => _mode = _NowPlayingMode.spectrum);
+          ref.read(visualizerStyleProvider.notifier).setRandom();
+          _startSpectrumForCurrent();
+        } else {
+          setState(() => _mode = _NowPlayingMode.spectrum);
+          ref
+              .read(visualizerStyleProvider.notifier)
+              .setStyle(VisualizerStyle.values.byName(v));
+          _startSpectrumForCurrent();
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'album',
+          child: _menuRow(Icons.album, 'Álbum',
+              selected: _mode == _NowPlayingMode.album),
+        ),
+        const PopupMenuDivider(),
+        for (final s in VisualizerStyle.values)
+          PopupMenuItem(
+            value: s.name,
+            child: _menuRow(s.icon, s.label,
+                selected:
+                    _mode == _NowPlayingMode.spectrum && s == style.style && !style.random),
+          ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'random',
+          child: _menuRow(Icons.shuffle, 'Aleatorio',
+              selected: _mode == _NowPlayingMode.spectrum && style.random),
+        ),
+      ],
+    );
+  }
+
+  Widget _menuRow(IconData icon, String label, {required bool selected}) {
+    return Row(children: [
+      Icon(icon,
+          size: 18, color: selected ? AppColors.primary : AppColors.muted),
+      const SizedBox(width: 8),
+      Text(label,
+          style: TextStyle(
+              color: selected ? AppColors.primary : AppColors.onBackground)),
+    ]);
+  }
+
+  /// Start (or re-point) the backend spectrum pipeline at the current
+  /// track's stream. No-op without a current track.
+  void _startSpectrumForCurrent() {
+    final id = ref.read(mediaProvider).current?.id;
+    if (id != null) _startSpectrum(id);
+  }
+
+  void _startSpectrum(String trackId) {
+    // Track what we started so the ref.listen track-change handler can
+    // detect real changes (and skip when the id merely re-appears).
+    _spectrumTrackId = trackId;
+    // The backend's SpectrumService is URL-generic (radio streams, local
+    // files — anything ffmpeg can read), so the media stream endpoint
+    // plugs straight in without backend changes.
+    ref
+        .read(spectrumProvider.notifier)
+        .start('${AppConfig.restBase}/media/stream/$trackId');
+  }
+
+  /// Stop the backend pipeline when leaving spectrum mode. The listenerId
+  /// is per-app-session so this can't kill radio's own analysis.
+  void _stopSpectrum() {
+    _spectrumTrackId = null;
+    ref.read(spectrumProvider.notifier).stop();
+  }
 }
+
+/// What the Media center panel shows above the seek bar.
+enum _NowPlayingMode { album, spectrum }

@@ -1,6 +1,6 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-09-05 (pulido Media: portadas/album art + paneles plegables; títulos in-screen fuera)
+Última actualización: 2026-09-05 (pulido Media: portadas/album art + paneles plegables + selector de vista álbum/espectro; títulos in-screen fuera)
 
 ## Stack y ramas
 
@@ -20,8 +20,8 @@
 - **Tests**:
   - Backend unitarios (Jest): **90 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan), `media-art.service` (portadas: cover de carpeta, extracción ffmpeg con cache + marcador negativo).
   - Backend e2e (Supertest): **69 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch. El de media incluye art con ffmpeg real (MEDIA_DIR de usar-y-tirar en tmp).
-  - Flutter: **53 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style`, `media_provider` (+cola/shuffle), `media_screen` (+árbol de carpetas, +chevrons de paneles), `shell_title`, `widget_test` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 212 tests** (90 unit + 69 e2e + 53 Flutter). Comando e2e: `npm run test:e2e`.
+  - Flutter: **54 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style` (+sentinel), `media_provider` (+cola/shuffle), `media_screen` (+árbol de carpetas, +chevrons de paneles, +selector vista álbum/espectro), `shell_title`, `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 213 tests** (90 unit + 69 e2e + 54 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -82,7 +82,7 @@
 - **Salud energética de la Pi**: undervoltage/throttle leyendo `/sys` o `vcgencmd`.
 
 ### Fase 4 — Pulido y producto
-- ~~**Media (archivos locales, metadatos)**~~ ✅ 2026-09-04, pulido 2026-09-05 — hecho: modelo `Track` (con `relPath`) + `MediaLibraryService` (escaneo incremental ffprobe, `MEDIA_DIR`) + `/media/tracks|library/scan|stream/:id (Range)|tracks/:id/play` + pantalla Flutter `/media` (biblioteca con búsqueda, reescaneo, **árbol de carpetas lateral**, **cola** con prev/next/auto-advance y **shuffle**). Reproduce vía el `AudioPlayerService` compartido con radio. La barra superior muestra `Media — <canción>` (y `Radio — <emisora>`); los títulos in-screen de Media y Radio se quitaron (solo barra superior). **Portadas/album art** ✅: `GET /media/tracks/:id/art` — cover de carpeta (cover.jpg…) o arte embebido extraído con ffmpeg al vuelo y cacheado en `MEDIA_DIR/.hiluxos-art` (marcador `.noart` de 7 días para no relanzar ffmpeg); la UI lo muestra como protagonista en now-playing y como miniatura en las filas. **Paneles plegables** ✅: chevrons en la fila de controles pliegan el raíl de carpetas y la biblioteca (patrón AnimatedContainer de Radio). Fix: resume tras completar pista re-carga la fuente (el play grande ya responde).
+- ~~**Media (archivos locales, metadatos)**~~ ✅ 2026-09-04, pulido 2026-09-05 — hecho: modelo `Track` (con `relPath`) + `MediaLibraryService` (escaneo incremental ffprobe, `MEDIA_DIR`) + `/media/tracks|library/scan|stream/:id (Range)|tracks/:id/play` + pantalla Flutter `/media` (biblioteca con búsqueda, reescaneo, **árbol de carpetas lateral**, **cola** con prev/next/auto-advance y **shuffle**). Reproduce vía el `AudioPlayerService` compartido con radio. La barra superior muestra `Media — <canción>` (y `Radio — <emisora>`); los títulos in-screen de Media y Radio se quitaron (solo barra superior). **Portadas/album art** ✅: `GET /media/tracks/:id/art` — cover de carpeta (cover.jpg…) o arte embebido extraído con ffmpeg al vuelo y cacheado en `MEDIA_DIR/.hiluxos-art` (marcador `.noart` de 7 días para no relanzar ffmpeg); la UI lo muestra como protagonista en now-playing y como miniatura en las filas. **Paneles plegables** ✅: chevrons en la fila de controles pliegan el raíl de carpetas y la biblioteca (patrón AnimatedContainer de Radio). **Selector de vista now-playing** ✅: popup junto a los controles con "Álbum" (portada, por defecto) o cualquiera de los 15 estilos del visualizador de espectro + "Aleatorio"; el pipeline de espectro del backend es genérico por URL, así que analiza `GET /media/stream/:id` sin cambios en backend (start/stop perezoso desde la pantalla: el ffmpeg solo corre con el modo espectro activo; listenerId por sesión evita pisar el de Radio). Fix: resume tras completar pista re-carga la fuente (el play grande ya responde).
 - Pulido UI de **Radio** (shimmer en búsqueda, entrada animada de ítems, "pop" de favorito, now-playing vistoso), **System**, **Settings** (cabeceras, feedback).
 - Rellenar celda vacía de la card **Sistema** (estado de red global / versión / mini-gauges).
 - **CI/CD** (GitHub Actions): build backend + `tsc`, `flutter analyze`, tests.

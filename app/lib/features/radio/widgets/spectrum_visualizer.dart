@@ -81,6 +81,16 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
     _ticker.start();
   }
 
+  @override
+  void dispose() {
+    // Media mounts/unmounts this widget when switching now-playing modes,
+    // so the Ticker must be properly stopped and disposed (leaking it
+    // trips TickerProviderStateMixin's assert when the tree finalizes).
+    _ticker.stop();
+    _ticker.dispose();
+    super.dispose();
+  }
+
   void _onTick(Duration elapsed) {
     if (!mounted) return;
     // Real delta time in seconds (clamped to avoid huge jumps after stalls).
