@@ -11,7 +11,7 @@ Fecha: 2026-09-01 · Análisis de viabilidad de las tres ideas propuestas para M
 **Viabilidad: alta.** Sin dependencias nuevas. Todo el trabajo cabe en el stack actual (Prisma + NestJS + Flutter).
 
 **Diseño (implementado):**
-- Nueva tabla Prisma `MediaFolder` — `{ id uuid, path (unique), label? }` con migración `20260901xxxxxx_add_media_folders`.
+- Nueva tabla Prisma `MediaFolder` — `{ id uuid, path unique, createdAt }` con migración `20260905171213_add_media_folders`; el `label` se calcula como basename en el DTO (no se persiste).
 - `MediaFoldersService` (backend): `list()` (con `exists: fs.existsSync`), `add(path)` (valida absoluto, normaliza con `path.resolve`, rechaza duplicados), `remove(id)` (purga los tracks del índice cuya ruta cae bajo esa carpeta). Seed inicial: el `MEDIA_DIR` del `.env` se inserta si la tabla está vacía (retro-compatibilidad total).
 - API: `GET /media/folders`, `POST /media/folders {path}`, `DELETE /media/folders/:id`.
 - Scanner multi-carpeta: `scan()` itera todas las `MediaFolder` (no solo `MEDIA_DIR`); carpetas que no existen en disco → `walk()` devuelve vacío (sin crash), pero sus filas quedan en la BD para cuando vuelvan.
