@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../core/utils/config.dart';
 import '../../core/widgets/staggered_entrance.dart';
+import '../../layout/app_shell.dart';
 import '../radio/spectrum_provider.dart';
 import '../radio/visualizer_style.dart';
 import '../radio/widgets/spectrum_visualizer.dart';
@@ -59,10 +60,12 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     final q = _query.text.trim().toLowerCase();
     if (q.isEmpty) return tracks;
     return tracks
-        .where((t) =>
-            t.title.toLowerCase().contains(q) ||
-            (t.artist?.toLowerCase().contains(q) ?? false) ||
-            (t.album?.toLowerCase().contains(q) ?? false))
+        .where(
+          (t) =>
+              t.title.toLowerCase().contains(q) ||
+              (t.artist?.toLowerCase().contains(q) ?? false) ||
+              (t.album?.toLowerCase().contains(q) ?? false),
+        )
         .toList();
   }
 
@@ -86,17 +89,19 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     return Scaffold(
       // The folder rail only fits on wide surfaces (car screen); narrower
       // windows get the classic two-column layout.
-      body: LayoutBuilder(builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 980;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (wide) ...[_folderColumn(state)],
-            Expanded(flex: 5, child: _leftColumn(state)),
-            _rightColumn(state),
-          ],
-        );
-      }),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 980;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (wide) ...[_folderColumn(state)],
+              Expanded(flex: 5, child: _leftColumn(state)),
+              _rightColumn(state),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -173,9 +178,8 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   /// Tracks inside [folder] exactly (not its subfolders).
-  List<Track> _tracksIn(List<Track> tracks, String folder) => tracks
-      .where((t) => t.folderName == folder)
-      .toList();
+  List<Track> _tracksIn(List<Track> tracks, String folder) =>
+      tracks.where((t) => t.folderName == folder).toList();
 
   /// Left rail: folder tree derived from the loaded library's relPath values.
   /// Tap a folder → the library list shows exactly that folder's tracks (and
@@ -201,12 +205,15 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     final openAncestors = _openFolder == null
         ? const <String>{}
         : _ancestorsOf(_openFolder!).toSet();
-    final nodes = counts.keys
-        .where((d) =>
-            !d.contains('/') ||
-            openAncestors.contains(d.substring(0, d.lastIndexOf('/'))))
-        .toList()
-      ..sort();
+    final nodes =
+        counts.keys
+            .where(
+              (d) =>
+                  !d.contains('/') ||
+                  openAncestors.contains(d.substring(0, d.lastIndexOf('/'))),
+            )
+            .toList()
+          ..sort();
 
     return SizedBox(
       width: 280,
@@ -221,11 +228,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('Carpetas',
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.muted)),
+                      child: Text(
+                        'Carpetas',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.muted,
+                        ),
+                      ),
                     ),
                     // Add a library folder (the backend persists it in the
                     // media_folders table and scans it right away).
@@ -293,10 +303,16 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         dense: true,
         selected: selected,
         selectedTileColor: AppColors.primary.withValues(alpha: 0.15),
-        leading: Icon(icon, size: 20, color: selected ? AppColors.primary : AppColors.muted),
+        leading: Icon(
+          icon,
+          size: 20,
+          color: selected ? AppColors.primary : AppColors.muted,
+        ),
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        trailing: Text('$count',
-            style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+        trailing: Text(
+          '$count',
+          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
         onTap: () => setState(() => _openFolder = selected ? null : folder),
       ),
     );
@@ -315,7 +331,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           child: ListTile(
             dense: true,
             leading: Icon(
-              folder.exists ? Icons.source_outlined : Icons.warning_amber_rounded,
+              folder.exists
+                  ? Icons.source_outlined
+                  : Icons.warning_amber_rounded,
               size: 20,
               color: folder.exists ? AppColors.muted : AppColors.danger,
             ),
@@ -334,9 +352,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
               iconSize: 18,
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
-              icon: const Icon(Icons.delete_outline,
-                  size: 18, color: AppColors.muted),
-              onPressed: state.foldersBusy ? null : () => _confirmRemoveFolder(folder),
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: AppColors.muted,
+              ),
+              onPressed: state.foldersBusy
+                  ? null
+                  : () => _confirmRemoveFolder(folder),
             ),
             onTap: () {
               if (!folder.exists) {
@@ -350,10 +373,12 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         if (!folder.exists)
           Padding(
             padding: const EdgeInsets.only(left: 40, bottom: 4),
-            child: Text('ruta no disponible: ${folder.path}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: AppColors.danger)),
+            child: Text(
+              'ruta no disponible: ${folder.path}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: AppColors.danger),
+            ),
           ),
       ],
     );
@@ -381,7 +406,8 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
             child: const Text('Añadir'),
           ),
         ],
@@ -399,8 +425,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Quitar carpeta'),
         content: Text(
-            'Se quitará "${folder.label}" de la biblioteca y sus canciones '
-            'se eliminarán del índice (los archivos no se tocan).'),
+          'Se quitará "${folder.label}" de la biblioteca y sus canciones '
+          'se eliminarán del índice (los archivos no se tocan).',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -423,6 +450,41 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  /// The shell ancestor — null when running without one (tests).
+  AppShellState? _shellOf(BuildContext context) =>
+      context.findAncestorStateOfType<AppShellState>();
+
+  /// Full-screen now-playing content for the shell overlay: the current
+  /// mode (album art with a vinyl-spin effect, or the spectrum visualizer).
+  /// Wrapped in a Consumer so track/play-state changes while in full-screen
+  /// keep it live (the shell doesn't watch the media provider).
+  Widget _fullscreenContent(BuildContext context, VoidCallback exit) {
+    return Consumer(builder: (context, ref, _) {
+      final state = ref.watch(mediaProvider);
+      if (_mode == _NowPlayingMode.spectrum) {
+        // Same shared visualizer as the panel — full-bleed here.
+        return SpectrumVisualizer(active: state.isPlaying, showStyleButton: true);
+      }
+      // Album mode: big cover, slow spin while playing (vinyl feel). No art →
+      // the same placeholder the center panel uses.
+      if (state.current == null) {
+        return Center(
+          child: Icon(
+            Icons.library_music_outlined,
+            size: 160,
+            color: AppColors.muted,
+          ),
+        );
+      }
+      return Center(
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: _VinylArt(trackId: state.current!.id, spinning: state.isPlaying),
+        ),
+      );
+    });
+  }
+
   /// Left: album art (the protagonist — the top bar already shows
   /// `Media — canción`, so no in-screen title) and a seek bar below.
   Widget _leftColumn(MediaState state) {
@@ -442,22 +504,22 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                       showStyleButton: false,
                     )
                   : state.current == null
-                      ? Center(
-                          child: Icon(
-                            state.isPlaying
-                                ? Icons.graphic_eq
-                                : Icons.library_music_outlined,
-                            size: 120,
-                            color: state.isPlaying
-                                ? AppColors.primary
-                                : AppColors.muted,
-                          ),
-                        )
-                      : _trackArt(
-                          state.current!.id,
-                          fit: BoxFit.contain,
-                          placeholder: _nowPlayingArtPlaceholder(state),
-                        ),
+                  ? Center(
+                      child: Icon(
+                        state.isPlaying
+                            ? Icons.graphic_eq
+                            : Icons.library_music_outlined,
+                        size: 120,
+                        color: state.isPlaying
+                            ? AppColors.primary
+                            : AppColors.muted,
+                      ),
+                    )
+                  : _trackArt(
+                      state.current!.id,
+                      fit: BoxFit.contain,
+                      placeholder: _nowPlayingArtPlaceholder(state),
+                    ),
             ),
           ),
           const SizedBox(height: 12),
@@ -482,11 +544,17 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
 
   /// The backend art URL for a track id (folder cover or ffmpeg-extracted
   /// embedded art; same host as the REST API).
-  static String _artUrl(String id) => '${AppConfig.restBase}/media/tracks/$id/art';
+  static String _artUrl(String id) =>
+      '${AppConfig.restBase}/media/tracks/$id/art';
 
   /// Art image with graceful fallback: 404/no-art → [placeholder].
-  Widget _trackArt(String id,
-      {BoxFit fit = BoxFit.cover, Widget? placeholder, double? width, double? height}) {
+  Widget _trackArt(
+    String id, {
+    BoxFit fit = BoxFit.cover,
+    Widget? placeholder,
+    double? width,
+    double? height,
+  }) {
     return Image.network(
       _artUrl(id),
       fit: fit,
@@ -522,8 +590,8 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             onChanged: state.current == null
                 ? null
                 : (v) => ref
-                    .read(mediaProvider.notifier)
-                    .seek(Duration(milliseconds: v.round())),
+                      .read(mediaProvider.notifier)
+                      .seek(Duration(milliseconds: v.round())),
           ),
         ),
         Padding(
@@ -531,8 +599,14 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_fmt(state.position), style: const TextStyle(color: AppColors.muted)),
-              Text(_fmt(state.duration), style: const TextStyle(color: AppColors.muted)),
+              Text(
+                _fmt(state.position),
+                style: const TextStyle(color: AppColors.muted),
+              ),
+              Text(
+                _fmt(state.duration),
+                style: const TextStyle(color: AppColors.muted),
+              ),
             ],
           ),
         ),
@@ -546,69 +620,88 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   Widget _controlsRow(MediaState state) {
     final notifier = ref.read(mediaProvider.notifier);
     final wide = MediaQuery.of(context).size.width >= 980;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Left chevron: collapse/expand the folder rail (wide surfaces only).
-        if (wide)
+    // Horizontal scroll when the row can't fit (narrow surfaces) — the
+    // app-wide touch drag behavior makes it swipable.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Left chevron: collapse/expand the folder rail (wide surfaces only).
+          if (wide)
+            IconButton(
+              tooltip: _folderPanelOpen
+                  ? 'Ocultar carpetas'
+                  : 'Mostrar carpetas',
+              icon: Icon(
+                _folderPanelOpen ? Icons.chevron_left : Icons.chevron_right,
+                color: AppColors.onBackground,
+                size: 30,
+              ),
+              onPressed: () =>
+                  setState(() => _folderPanelOpen = !_folderPanelOpen),
+            ),
           IconButton(
-            tooltip: _folderPanelOpen ? 'Ocultar carpetas' : 'Mostrar carpetas',
+            iconSize: 32,
+            icon: const Icon(Icons.skip_previous),
+            onPressed: state.current == null ? null : () => notifier.previous(),
+          ),
+          const SizedBox(width: 16),
+          IconButton.filledTonal(
+            iconSize: 36,
+            icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+            onPressed: state.current == null
+                ? null
+                : () => state.isPlaying ? notifier.pause() : notifier.resume(),
+          ),
+          const SizedBox(width: 16),
+          IconButton(
+            iconSize: 32,
+            icon: const Icon(Icons.skip_next),
+            onPressed: state.current == null ? null : () => notifier.next(),
+          ),
+          const SizedBox(width: 24),
+          IconButton(
+            iconSize: 26,
+            tooltip: 'Reproducción aleatoria',
+            icon: Icon(Icons.shuffle),
+            color: state.shuffle ? AppColors.primary : AppColors.muted,
+            onPressed: notifier.toggleShuffle,
+          ),
+          IconButton(
+            iconSize: 26,
+            icon: const Icon(Icons.stop),
+            onPressed: state.current == null ? null : notifier.stop,
+          ),
+          // Now-playing mode picker: album art (this screen's own work) or any
+          // of the shared spectrum visualizer styles + random. Same popup
+          // pattern as Radio's style picker.
+          _modeMenuButton(),
+          // Full-screen now-playing (tap anywhere to exit): album art with a
+          // slow vinyl-spin effect, or the spectrum visualizer filling the
+          // screen. Same content as the center panel, upscaled.
+          IconButton(
+            tooltip: 'Pantalla completa',
+            iconSize: 26,
+            icon: const Icon(Icons.fullscreen),
+            onPressed: () =>
+                _shellOf(context)?.enterFullscreen(_fullscreenContent),
+          ),
+          // Right chevron: collapse/expand the library panel.
+          IconButton(
+            tooltip: _libraryPanelOpen
+                ? 'Ocultar biblioteca'
+                : 'Mostrar biblioteca',
             icon: Icon(
-              _folderPanelOpen ? Icons.chevron_left : Icons.chevron_right,
+              _libraryPanelOpen ? Icons.chevron_right : Icons.chevron_left,
               color: AppColors.onBackground,
               size: 30,
             ),
-            onPressed: () => setState(() => _folderPanelOpen = !_folderPanelOpen),
+            onPressed: () =>
+                setState(() => _libraryPanelOpen = !_libraryPanelOpen),
           ),
-        IconButton(
-          iconSize: 32,
-          icon: const Icon(Icons.skip_previous),
-          onPressed:
-              state.current == null ? null : () => notifier.previous(),
-        ),
-        const SizedBox(width: 16),
-        IconButton.filledTonal(
-          iconSize: 36,
-          icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-          onPressed: state.current == null
-              ? null
-              : () => state.isPlaying ? notifier.pause() : notifier.resume(),
-        ),
-        const SizedBox(width: 16),
-        IconButton(
-          iconSize: 32,
-          icon: const Icon(Icons.skip_next),
-          onPressed:
-              state.current == null ? null : () => notifier.next(),
-        ),
-        const SizedBox(width: 24),
-        IconButton(
-          iconSize: 26,
-          tooltip: 'Reproducción aleatoria',
-          icon: Icon(Icons.shuffle),
-          color: state.shuffle ? AppColors.primary : AppColors.muted,
-          onPressed: notifier.toggleShuffle,
-        ),
-        IconButton(
-          iconSize: 26,
-          icon: const Icon(Icons.stop),
-          onPressed: state.current == null ? null : notifier.stop,
-        ),
-        // Now-playing mode picker: album art (this screen's own work) or any
-        // of the shared spectrum visualizer styles + random. Same popup
-        // pattern as Radio's style picker.
-        _modeMenuButton(),
-        // Right chevron: collapse/expand the library panel.
-        IconButton(
-          tooltip: _libraryPanelOpen ? 'Ocultar biblioteca' : 'Mostrar biblioteca',
-          icon: Icon(
-            _libraryPanelOpen ? Icons.chevron_right : Icons.chevron_left,
-            color: AppColors.onBackground,
-            size: 30,
-          ),
-          onPressed: () => setState(() => _libraryPanelOpen = !_libraryPanelOpen),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -619,43 +712,47 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _query,
-                      decoration: const InputDecoration(
-                        hintText: 'Buscar en la biblioteca…',
-                        prefixIcon: Icon(Icons.search),
-                      ),
-                      onChanged: (_) => setState(() {}),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _query,
+                    decoration: const InputDecoration(
+                      hintText: 'Buscar en la biblioteca…',
+                      prefixIcon: Icon(Icons.search),
                     ),
+                    onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Reescanear biblioteca',
-                    icon: state.scanning
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.refresh),
-                    onPressed:
-                        state.scanning ? null : () => ref.read(mediaProvider.notifier).scan(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (state.error != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(state.error!,
-                      style: const TextStyle(color: AppColors.danger)),
                 ),
-              Expanded(child: _libraryList(state)),
-            ],
-          ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Reescanear biblioteca',
+                  icon: state.scanning
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                  onPressed: state.scanning
+                      ? null
+                      : () => ref.read(mediaProvider.notifier).scan(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (state.error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  state.error!,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+              ),
+            Expanded(child: _libraryList(state)),
+          ],
         ),
+      ),
     );
   }
 
@@ -691,26 +788,36 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
               child: SizedBox(
                 width: 44,
                 height: 44,
-                child: _trackArt(t.id,
-                    placeholder: Icon(
-                      isCurrent && state.isPlaying
-                          ? Icons.graphic_eq
-                          : Icons.music_note,
-                      size: 26,
-                      color: isCurrent ? AppColors.primary : AppColors.muted,
-                    )),
+                child: _trackArt(
+                  t.id,
+                  placeholder: Icon(
+                    isCurrent && state.isPlaying
+                        ? Icons.graphic_eq
+                        : Icons.music_note,
+                    size: 26,
+                    color: isCurrent ? AppColors.primary : AppColors.muted,
+                  ),
+                ),
               ),
             ),
-            title: Text(t.title,
-                style: isCurrent
-                    ? const TextStyle(fontWeight: FontWeight.w700)
-                    : null),
+            title: Text(
+              t.title,
+              style: isCurrent
+                  ? const TextStyle(fontWeight: FontWeight.w700)
+                  : null,
+            ),
             subtitle: t.subtitle.isEmpty
                 ? null
-                : Text(t.subtitle, style: const TextStyle(color: AppColors.muted)),
-            trailing: Text(_fmt(Duration(seconds: t.durationSec.round())),
-                style: const TextStyle(color: AppColors.muted)),
-            onTap: () => ref.read(mediaProvider.notifier).play(t, fromQueue: visible),
+                : Text(
+                    t.subtitle,
+                    style: const TextStyle(color: AppColors.muted),
+                  ),
+            trailing: Text(
+              _fmt(Duration(seconds: t.durationSec.round())),
+              style: const TextStyle(color: AppColors.muted),
+            ),
+            onTap: () =>
+                ref.read(mediaProvider.notifier).play(t, fromQueue: visible),
           ),
         );
       },
@@ -753,36 +860,55 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
       itemBuilder: (_) => [
         PopupMenuItem(
           value: 'album',
-          child: _menuRow(Icons.album, 'Álbum',
-              selected: _mode == _NowPlayingMode.album),
+          child: _menuRow(
+            Icons.album,
+            'Álbum',
+            selected: _mode == _NowPlayingMode.album,
+          ),
         ),
         const PopupMenuDivider(),
         for (final s in VisualizerStyle.values)
           PopupMenuItem(
             value: s.name,
-            child: _menuRow(s.icon, s.label,
-                selected:
-                    _mode == _NowPlayingMode.spectrum && s == style.style && !style.random),
+            child: _menuRow(
+              s.icon,
+              s.label,
+              selected:
+                  _mode == _NowPlayingMode.spectrum &&
+                  s == style.style &&
+                  !style.random,
+            ),
           ),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'random',
-          child: _menuRow(Icons.shuffle, 'Aleatorio',
-              selected: _mode == _NowPlayingMode.spectrum && style.random),
+          child: _menuRow(
+            Icons.shuffle,
+            'Aleatorio',
+            selected: _mode == _NowPlayingMode.spectrum && style.random,
+          ),
         ),
       ],
     );
   }
 
   Widget _menuRow(IconData icon, String label, {required bool selected}) {
-    return Row(children: [
-      Icon(icon,
-          size: 18, color: selected ? AppColors.primary : AppColors.muted),
-      const SizedBox(width: 8),
-      Text(label,
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: selected ? AppColors.primary : AppColors.muted,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
           style: TextStyle(
-              color: selected ? AppColors.primary : AppColors.onBackground)),
-    ]);
+            color: selected ? AppColors.primary : AppColors.onBackground,
+          ),
+        ),
+      ],
+    );
   }
 
   /// Start (or re-point) the backend spectrum pipeline at the current
@@ -814,3 +940,132 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
 
 /// What the Media center panel shows above the seek bar.
 enum _NowPlayingMode { album, spectrum }
+
+/// Full-screen album art with a slow vinyl-record spin while playing.
+///
+/// The art sits as the record's label; the black disc, grooves and a subtle
+/// specular sheen sell the effect. Taps fall through to the FullscreenHost's
+/// GestureDetector (tap anywhere = exit), so this widget is passive.
+class _VinylArt extends StatefulWidget {
+  const _VinylArt({required this.trackId, required this.spinning});
+
+  final String trackId;
+  final bool spinning;
+
+  @override
+  State<_VinylArt> createState() => _VinylArtState();
+}
+
+class _VinylArtState extends State<_VinylArt>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 12),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.spinning) _spin.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VinylArt old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning == old.spinning) return;
+    if (widget.spinning) {
+      _spin.repeat();
+    } else {
+      // Leave the disc where it is — a paused record, not a rewind.
+      _spin.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Fill the shorter screen axis; center with slack on the other.
+        final size = constraints.biggest.shortestSide;
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: RotationTransition(
+              turns: _spin,
+              child: CustomPaint(
+                painter: _VinylPainter(),
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(size / 6),
+                    // The label: about a third of the disc.
+                    child: SizedBox(
+                      width: size / 3,
+                      height: size / 3,
+                      child: Image.network(
+                        '${AppConfig.restBase}/media/tracks/${widget.trackId}/art',
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, _, _) => const ColoredBox(
+                          color: AppColors.background,
+                          child: Center(
+                            child: Icon(
+                              Icons.music_note,
+                              size: 64,
+                              color: AppColors.muted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Disc, spindle hole and grooves, painted once per size.
+class _VinylPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.shortestSide / 2;
+    final c = Offset(size.width / 2, size.height / 2);
+
+    // Black disc.
+    final disc = Paint()..color = const Color(0xFF141414);
+    canvas.drawCircle(c, r, disc);
+
+    // Grooves: concentric faint rings getting denser toward the rim.
+    final groove = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (double g = r / 2.6; g < r * 0.95; g += 6) {
+      canvas.drawCircle(c, g, groove);
+    }
+
+    // Lead-in rim highlight.
+    final rim = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(c, r - 2, rim);
+
+    // Spindle hole.
+    canvas.drawCircle(c, r * 0.045, Paint()..color = Colors.black);
+  }
+
+  @override
+  bool shouldRepaint(covariant _VinylPainter oldDelegate) => false;
+}

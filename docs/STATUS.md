@@ -1,6 +1,6 @@
 # Estado del proyecto — hiluxOS
 
-Última actualización: 2026-09-05 (Media: **carpetas configurables persistidas en BD** — tabla `media_folders` + CRUD API + raíl con añadir/quitar y aviso de ruta no disponible; roadmap en `docs/ROADMAP-MEDIA.md`)
+Última actualización: 2026-09-05 (Media: **carpetas configurables persistidas en BD** — tabla `media_folders` + CRUD API + raíl con añadir/quitar y aviso de ruta no disponible; **modo pantalla completa táctil** compartido para Media/Radio; roadmap en `docs/ROADMAP-MEDIA.md`)
 
 ## Stack y ramas
 
@@ -20,8 +20,8 @@
 - **Tests**:
   - Backend unitarios (Jest): **101 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan; **multi-carpeta** vía `MediaFoldersService.scanRoots()`), `media-art.service` (portadas: cover de carpeta, extracción ffmpeg con cache + marcador negativo), **`media-folders.service`** (seed MEDIA_DIR, add con validación de absoluta/raíz/duplicado, remove con purga de tracks, exists flag).
   - Backend e2e (Supertest): **75 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch. El de media incluye art con ffmpeg real (MEDIA_DIR de usar-y-tirar en tmp) y **CRUD de carpetas** (GET/POST/DELETE con exists flag y purga de tracks).
-  - Flutter: **56 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style` (+sentinel), `media_provider` (+cola/shuffle), `media_screen` (+árbol de carpetas, +chevrons de paneles, +selector vista álbum/espectro, **+raíl de carpetas configuradas con aviso de missing y confirm de borrado, +diálogo de añadir carpeta**), `shell_title`, `widget_test` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 232 tests** (101 unit + 75 e2e + 56 Flutter). Comando e2e: `npm run test:e2e`.
+  - Flutter: **59 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style` (+sentinel), `media_provider` (+cola/shuffle), `media_screen` (+árbol de carpetas, +chevrons de paneles, +selector vista álbum/espectro, **+raíl de carpetas configuradas con aviso de missing y confirm de borrado, +diálogo de añadir carpeta**), `shell_title`, **`fullscreen_host`** (overlay tap-to-exit cubre TODO el shell incl. panel de estado; exit por tap en cualquier punto), `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 235 tests** (101 unit + 75 e2e + 59 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
@@ -50,6 +50,7 @@
 - **Quick Panel**: overlay deslizante desde el panel superior con toggles WiFi/BT, sliders volumen/brillo, indicadores de Internet y Backend. Cierra tocando fuera.
 - Home: barra contextual + 4 cards (Estado actual, Sistema, Vehículo, Pendientes) en grid 2×2 sin scroll.
 - Pantallas: Radio (búsqueda, favoritos, historial, playback + visualizador), System, Settings — cableadas al backend.
+- **Modo pantalla completa táctil** ✅ 2026-09-05: `FullscreenHost` — overlay en el `Stack` raíz del `AppShell` (FUERA del Scaffold, cubre TODO incl. el panel de estado; pantalla negra). Botón ⛶ ("Pantalla completa") en la fila de controles de Media y Radio. **Tap en cualquier punto = salir.** Media: modo álbum → portada con efecto **disco de vinilo** (rotación lenta 12s mientras suena, surcos pintados con CustomPainter, orificio central, la portada como etiqueta del disco); modo espectro → `SpectrumVisualizer` full-bleed (mismo widget compartido). Radio: espectro full-bleed. El contenido usa `Consumer`+`watch` para seguir vivo (cambio de pista/pausa) aunque el shell no observe el provider. v1 sin controles dentro, como se aprobó.
 - **Settings → Wi-Fi & Bluetooth**: secciones dedicadas en la pantalla de Ajustes con toggle de radio, escaneo, lista de redes/dispositivos, diálogo de contraseña WiFi y diálogo de PIN Bluetooth.
 - **Teclado en pantalla** (`virtual_keypad`): teclado virtual pure-Dart integrado en el `AppShell` (modo standalone, se oculta sin foco). Cualquier `TextField`/`TextFormField` del app (incluido `TaskDialog`, contraseña WiFi, PIN BT) obtiene teclado táctil automáticamente — necesario porque la RPi+Cage/Wayland no tiene IME del sistema. `initializeKeyboardLayouts()` en `main()`.
 - **Notificaciones**: panel + toast, provider conectado al backend.

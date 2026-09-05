@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../layout/app_shell.dart';
 import '../../shared/models/station.dart';
 import 'radio_provider.dart';
 import 'widgets/spectrum_visualizer.dart';
@@ -123,6 +124,23 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
             size: 36,
           ),
           onPressed: () => setState(() => _searchPanelOpen = !_searchPanelOpen),
+        ),
+        // Full-screen spectrum (tap anywhere to exit) — same shared
+        // visualizer, full-bleed. Consumer keeps `active` live if playback
+        // stops/starts while in full-screen.
+        IconButton(
+          tooltip: 'Pantalla completa',
+          icon: const Icon(Icons.fullscreen, size: 32),
+          onPressed: () => context
+                  .findAncestorStateOfType<AppShellState>()
+                  ?.enterFullscreen(
+                (context, exit) => Consumer(
+                  builder: (context, ref, _) => SpectrumVisualizer(
+                    active: ref.watch(radioProvider).isPlaying,
+                    showStyleButton: true,
+                  ),
+                ),
+              ),
         ),
       ],
     );

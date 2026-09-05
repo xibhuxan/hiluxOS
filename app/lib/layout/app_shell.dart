@@ -5,6 +5,7 @@ import 'package:virtual_keypad/virtual_keypad.dart';
 import '../core/theme/colors.dart';
 import '../features/notifications/widgets/notification_toast.dart';
 import '../features/notifications/widgets/notification_panel.dart';
+import 'fullscreen_host.dart';
 import 'widgets/app_drawer_grid.dart';
 import 'widgets/status_panel.dart';
 import 'widgets/quick_panel.dart';
@@ -28,6 +29,20 @@ class AppShellState extends ConsumerState<AppShell> {
   bool _notifOpen = false;
   bool _quickOpen = false;
   bool _keyboardVisible = false;
+
+  /// Active full-screen content (tap-to-exit now-playing), or null.
+  FullscreenBuilder? _fullscreenBuilder;
+
+  /// Show [builder]'s content full-screen (tap anywhere exits). Available to
+  /// any screen inside the shell via its ancestor AppShellState.
+  void enterFullscreen(FullscreenBuilder builder) {
+    setState(() => _fullscreenBuilder = builder);
+  }
+
+  void _exitFullscreen() {
+    if (_fullscreenBuilder == null) return;
+    setState(() => _fullscreenBuilder = null);
+  }
 
   void _onNotifChanged(bool open) {
     if (_notifOpen != open) setState(() => _notifOpen = open);
@@ -61,88 +76,98 @@ class AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: AppColors.background,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(84),
-        child: SafeArea(
-          bottom: false,
-          child: StatusPanel(
-            routeLocation: widget.routeLocation,
-            onApps: () => _scaffoldKey.currentState?.openEndDrawer(),
-            onHome: () => context.go('/'),
-            onQuickPanel: toggleQuickPanel,
-            onNotifications: toggleNotificationPanel,
-          ),
-        ),
-      ),
-      endDrawer: const AppDrawerGrid(),
-      body: Stack(
-        children: [
-          // Main content. When the on-screen keyboard is visible we reserve
-          // space at the bottom so the focused field stays visible above it.
-          Container(
-            decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+    return Stack(
+      children: [
+        Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: AppColors.background,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(84),
             child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  padding: EdgeInsets.only(bottom: _keyboardVisible ? 280 : 0),
-                  child: widget.child,
-                ),
+              bottom: false,
+              child: StatusPanel(
+                routeLocation: widget.routeLocation,
+                onApps: () => _scaffoldKey.currentState?.openEndDrawer(),
+                onHome: () => context.go('/'),
+                onQuickPanel: toggleQuickPanel,
+                onNotifications: toggleNotificationPanel,
               ),
             ),
           ),
-          // Dismiss layer for quick panel (below quick panel so panel is tappable)
-          if (_quickOpen)
-            _QuickPanelDismiss(
-              shell: this,
-              onTap: closeQuickPanel,
-            ),
-          // Quick Panel overlay (above its dismiss layer)
-          QuickPanel(
-            key: _quickPanelKey,
-            onOpenChanged: _onQuickChanged,
+          endDrawer: const AppDrawerGrid(),
+          body: Stack(
+            children: [
+              // Main content. When the on-screen keyboard is visible we reserve
+              // space at the bottom so the focused field stays visible above it.
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: AppColors.backgroundGradient,
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      padding: EdgeInsets.only(
+                        bottom: _keyboardVisible ? 280 : 0,
+                      ),
+                      child: widget.child,
+                    ),
+                  ),
+                ),
+              ),
+              // Dismiss layer for quick panel (below quick panel so panel is tappable)
+              if (_quickOpen)
+                _QuickPanelDismiss(shell: this, onTap: closeQuickPanel),
+              // Quick Panel overlay (above its dismiss layer)
+              QuickPanel(key: _quickPanelKey, onOpenChanged: _onQuickChanged),
+              // Dismiss layer for notification panel (below notification panel)
+              if (_notifOpen)
+                _NotificationDismiss(
+                  shell: this,
+                  onTap: closeNotificationPanel,
+                ),
+              // Notification panel overlay (above its dismiss layer)
+              NotificationPanel(
+                key: _notificationPanelKey,
+                onOpenChanged: _onNotifChanged,
+              ),
+              // Notification toasts (top of the screen)
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: NotificationToast(),
+              ),
+              // On-screen virtual keyboard, pinned to the bottom. Standalone mode
+              // attaches to any focused TextField/TextFormField in the subtree, so
+              // dialogs (TaskDialog, WiFi password, BT PIN) get a keyboard for free.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: VirtualKeypad(
+                  standalone: true,
+                  hideWhenUnfocused: true,
+                  onVisibilityChanged: (v) {
+                    if (_keyboardVisible != v) {
+                      setState(() => _keyboardVisible = v);
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-          // Dismiss layer for notification panel (below notification panel)
-          if (_notifOpen)
-            _NotificationDismiss(
-              shell: this,
-              onTap: closeNotificationPanel,
-            ),
-          // Notification panel overlay (above its dismiss layer)
-          NotificationPanel(
-            key: _notificationPanelKey,
-            onOpenChanged: _onNotifChanged,
-          ),
-          // Notification toasts (top of the screen)
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: NotificationToast(),
-          ),
-          // On-screen virtual keyboard, pinned to the bottom. Standalone mode
-          // attaches to any focused TextField/TextFormField in the subtree, so
-          // dialogs (TaskDialog, WiFi password, BT PIN) get a keyboard for free.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: VirtualKeypad(
-              standalone: true,
-              hideWhenUnfocused: true,
-              onVisibilityChanged: (v) {
-                if (_keyboardVisible != v) setState(() => _keyboardVisible = v);
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+        // Tap-to-exit full-screen now-playing overlay (Media album art /
+        // spectrum, Radio spectrum). OUTSIDE the Scaffold so it covers the
+        // status panel too — the whole screen goes black. It never coexists
+        // with the keyboard (no text fields in full-screen content).
+        if (_fullscreenBuilder != null)
+          FullscreenHost(builder: _fullscreenBuilder!, onExit: _exitFullscreen),
+      ],
     );
   }
 }
