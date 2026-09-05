@@ -1,11 +1,14 @@
 import { Test } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { MediaFoldersService } from './media-folders.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 
 // mapFolder() stats the filesystem directly; mock statSync/existSync so the
-// exists flag is deterministic (requireActual keeps the rest of fs real).
+// exists flag is deterministic (requireActual keeps the rest of fs real —
+// including fs.promises, which browse() uses untouched).
 jest.mock('node:fs', () => ({
   ...jest.requireActual('node:fs'),
   statSync: jest.fn(),
@@ -145,6 +148,66 @@ describe('MediaFoldersService', () => {
       const res = await service.scanRoots();
 
       expect(res).toEqual(['/music']);
+    });
+  });
+
+  describe('browse', () => {
+    const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'hiluxos-browse-'));
+
+    it('lists the filesystem root when no path is given', async () => {
+      const res = await service.browse(undefined);
+
+      expect(res.parent).toBeNull(); // no parent above /
+      expect(res.readable).toBe(true);
+      expect(res.home).toBe(os.homedir());
+      // Sanity: a Linux root has well-known directories.
+      expect(res.dirs.map((d) => d.name)).toContain('tmp');
+    });
+
+    it('lists only non-hidden directories, sorted case-insensitively', async () => {
+      const dir = tmp();
+      fs.mkdirSync(path.join(dir, 'Zebra'));
+      fs.mkdirSync(path.join(dir, 'apple'));
+      fs.mkdirSync(path.join(dir, '.hidden'));
+      fs.writeFileSync(path.join(dir, 'afile.txt'), 'not a directory');
+
+      const res = await service.browse(dir);
+
+      expect(res.path).toBe(dir);
+      expect(res.parent).toBe(path.dirname(dir));
+      expect(res.dirs.map((d) => d.name)).toEqual(['apple', 'Zebra']);
+      expect(res.dirs[0].path).toBe(path.join(dir, 'apple'));
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('includes symlinked directories but skips broken links', async () => {
+      const dir = tmp();
+      const target = tmp();
+      fs.mkdirSync(path.join(dir, 'realdir'));
+      fs.symlinkSync(target, path.join(dir, 'goodlink'));
+      fs.symlinkSync(path.join(dir, 'nowhere'), path.join(dir, 'brokenlink'));
+
+      const res = await service.browse(dir);
+
+      const names = res.dirs.map((d) => d.name).sort();
+      expect(names).toEqual(['goodlink', 'realdir']);
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(target, { recursive: true, force: true });
+    });
+
+    it('rejects a path that is a file with 400', async () => {
+      const file = path.join(os.tmpdir(), `hiluxos-file-${Date.now()}.txt`);
+      fs.writeFileSync(file, 'x');
+
+      await expect(service.browse(file)).rejects.toThrow('not a directory');
+
+      fs.rmSync(file, { force: true });
+    });
+
+    it('rejects a path that does not exist with 400', async () => {
+      await expect(service.browse('/definitely/not/here')).rejects.toThrow(
+        'not found',
+      );
     });
   });
 });

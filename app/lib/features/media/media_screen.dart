@@ -10,6 +10,7 @@ import '../radio/widgets/spectrum_visualizer.dart';
 import 'media_provider.dart';
 import 'models/media_folder.dart';
 import 'models/track.dart';
+import 'widgets/folder_picker_dialog.dart';
 
 class MediaScreen extends ConsumerStatefulWidget {
   const MediaScreen({super.key});
@@ -384,34 +385,12 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
   }
 
-  /// The "＋ Añadir carpeta" dialog: a plain TextField (the shell-level
-  /// VirtualKeypad attaches to any focused text field automatically).
+  /// The "＋ Añadir carpeta" dialog: a system folder picker that navigates
+  /// the real filesystem (no typed paths — the display is touch-only).
   Future<void> _promptAddFolder() async {
-    final controller = TextEditingController();
     final path = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Añadir carpeta'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: '/ruta/absoluta/a/la/carpeta',
-            labelText: 'Ruta absoluta',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: const Text('Añadir'),
-          ),
-        ],
-      ),
+      builder: (dialogContext) => const FolderPickerDialog(),
     );
     if (path == null || path.isEmpty) return;
     final err = await ref.read(mediaProvider.notifier).addFolder(path);
@@ -459,30 +438,38 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   /// Wrapped in a Consumer so track/play-state changes while in full-screen
   /// keep it live (the shell doesn't watch the media provider).
   Widget _fullscreenContent(BuildContext context, VoidCallback exit) {
-    return Consumer(builder: (context, ref, _) {
-      final state = ref.watch(mediaProvider);
-      if (_mode == _NowPlayingMode.spectrum) {
-        // Same shared visualizer as the panel — full-bleed here.
-        return SpectrumVisualizer(active: state.isPlaying, showStyleButton: true);
-      }
-      // Album mode: big cover, slow spin while playing (vinyl feel). No art →
-      // the same placeholder the center panel uses.
-      if (state.current == null) {
+    return Consumer(
+      builder: (context, ref, _) {
+        final state = ref.watch(mediaProvider);
+        if (_mode == _NowPlayingMode.spectrum) {
+          // Same shared visualizer as the panel — full-bleed here.
+          return SpectrumVisualizer(
+            active: state.isPlaying,
+            showStyleButton: true,
+          );
+        }
+        // Album mode: big cover, slow spin while playing (vinyl feel). No art →
+        // the same placeholder the center panel uses.
+        if (state.current == null) {
+          return Center(
+            child: Icon(
+              Icons.library_music_outlined,
+              size: 160,
+              color: AppColors.muted,
+            ),
+          );
+        }
         return Center(
-          child: Icon(
-            Icons.library_music_outlined,
-            size: 160,
-            color: AppColors.muted,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: _VinylArt(
+              trackId: state.current!.id,
+              spinning: state.isPlaying,
+            ),
           ),
         );
-      }
-      return Center(
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: _VinylArt(trackId: state.current!.id, spinning: state.isPlaying),
-        ),
-      );
-    });
+      },
+    );
   }
 
   /// Left: album art (the protagonist — the top bar already shows
@@ -621,87 +608,114 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     final notifier = ref.read(mediaProvider.notifier);
     final wide = MediaQuery.of(context).size.width >= 980;
     // Horizontal scroll when the row can't fit (narrow surfaces) — the
-    // app-wide touch drag behavior makes it swipable.
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Left chevron: collapse/expand the folder rail (wide surfaces only).
-          if (wide)
-            IconButton(
-              tooltip: _folderPanelOpen
-                  ? 'Ocultar carpetas'
-                  : 'Mostrar carpetas',
-              icon: Icon(
-                _folderPanelOpen ? Icons.chevron_left : Icons.chevron_right,
-                color: AppColors.onBackground,
-                size: 30,
-              ),
-              onPressed: () =>
-                  setState(() => _folderPanelOpen = !_folderPanelOpen),
+    // app-wide touch drag behavior makes it swipable. A SingleChildScrollView
+    // gives the Row unbounded width, which kills its mainAxisAlignment —
+    // centering the Row itself (ConstrainedBox >= viewport) keeps the
+    // controls centered when they DO fit and left-anchored scrolling only
+    // when they overflow.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Left chevron: collapse/expand the folder rail (wide surfaces only).
+                if (wide)
+                  IconButton(
+                    tooltip: _folderPanelOpen
+                        ? 'Ocultar carpetas'
+                        : 'Mostrar carpetas',
+                    icon: Icon(
+                      _folderPanelOpen
+                          ? Icons.chevron_left
+                          : Icons.chevron_right,
+                      color: AppColors.onBackground,
+                      size: 30,
+                    ),
+                    onPressed: () =>
+                        setState(() => _folderPanelOpen = !_folderPanelOpen),
+                  ),
+                IconButton(
+                  iconSize: 32,
+                  icon: const Icon(Icons.skip_previous),
+                  onPressed: state.current == null
+                      ? null
+                      : () => notifier.previous(),
+                ),
+                const SizedBox(width: 16),
+                IconButton.filledTonal(
+                  iconSize: 36,
+                  icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: state.current == null
+                      ? null
+                      : () => state.isPlaying
+                            ? notifier.pause()
+                            : notifier.resume(),
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  iconSize: 32,
+                  icon: const Icon(Icons.skip_next),
+                  onPressed: state.current == null
+                      ? null
+                      : () => notifier.next(),
+                ),
+                const SizedBox(width: 24),
+                IconButton(
+                  iconSize: 26,
+                  tooltip: 'Reproducción aleatoria',
+                  icon: Icon(Icons.shuffle),
+                  color: state.shuffle ? AppColors.primary : AppColors.muted,
+                  onPressed: notifier.toggleShuffle,
+                ),
+                IconButton(
+                  iconSize: 26,
+                  icon: const Icon(Icons.stop),
+                  onPressed: state.current == null ? null : notifier.stop,
+                ),
+                // Now-playing mode picker: album art (this screen's own work) or any
+                // of the shared spectrum visualizer styles + random. Same popup
+                // pattern as Radio's style picker.
+                _modeMenuButton(),
+                // Full-screen now-playing (tap anywhere to exit): album art with a
+                // slow vinyl-spin effect, or the spectrum visualizer filling the
+                // screen. Same content as the center panel, upscaled. Spectrum
+                // fullscreen uses the panel's surface tone as backdrop (pure black
+                // would make the translucent painter colors read darker).
+                IconButton(
+                  tooltip: 'Pantalla completa',
+                  iconSize: 26,
+                  icon: const Icon(Icons.fullscreen),
+                  onPressed: () => _shellOf(context)?.enterFullscreen(
+                    _fullscreenContent,
+                    background: _mode == _NowPlayingMode.spectrum
+                        ? AppColors.surface
+                        : Colors.black,
+                  ),
+                ),
+                // Right chevron: collapse/expand the library panel.
+                IconButton(
+                  tooltip: _libraryPanelOpen
+                      ? 'Ocultar biblioteca'
+                      : 'Mostrar biblioteca',
+                  icon: Icon(
+                    _libraryPanelOpen
+                        ? Icons.chevron_right
+                        : Icons.chevron_left,
+                    color: AppColors.onBackground,
+                    size: 30,
+                  ),
+                  onPressed: () =>
+                      setState(() => _libraryPanelOpen = !_libraryPanelOpen),
+                ),
+              ],
             ),
-          IconButton(
-            iconSize: 32,
-            icon: const Icon(Icons.skip_previous),
-            onPressed: state.current == null ? null : () => notifier.previous(),
           ),
-          const SizedBox(width: 16),
-          IconButton.filledTonal(
-            iconSize: 36,
-            icon: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-            onPressed: state.current == null
-                ? null
-                : () => state.isPlaying ? notifier.pause() : notifier.resume(),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            iconSize: 32,
-            icon: const Icon(Icons.skip_next),
-            onPressed: state.current == null ? null : () => notifier.next(),
-          ),
-          const SizedBox(width: 24),
-          IconButton(
-            iconSize: 26,
-            tooltip: 'Reproducción aleatoria',
-            icon: Icon(Icons.shuffle),
-            color: state.shuffle ? AppColors.primary : AppColors.muted,
-            onPressed: notifier.toggleShuffle,
-          ),
-          IconButton(
-            iconSize: 26,
-            icon: const Icon(Icons.stop),
-            onPressed: state.current == null ? null : notifier.stop,
-          ),
-          // Now-playing mode picker: album art (this screen's own work) or any
-          // of the shared spectrum visualizer styles + random. Same popup
-          // pattern as Radio's style picker.
-          _modeMenuButton(),
-          // Full-screen now-playing (tap anywhere to exit): album art with a
-          // slow vinyl-spin effect, or the spectrum visualizer filling the
-          // screen. Same content as the center panel, upscaled.
-          IconButton(
-            tooltip: 'Pantalla completa',
-            iconSize: 26,
-            icon: const Icon(Icons.fullscreen),
-            onPressed: () =>
-                _shellOf(context)?.enterFullscreen(_fullscreenContent),
-          ),
-          // Right chevron: collapse/expand the library panel.
-          IconButton(
-            tooltip: _libraryPanelOpen
-                ? 'Ocultar biblioteca'
-                : 'Mostrar biblioteca',
-            icon: Icon(
-              _libraryPanelOpen ? Icons.chevron_right : Icons.chevron_left,
-              color: AppColors.onBackground,
-              size: 30,
-            ),
-            onPressed: () =>
-                setState(() => _libraryPanelOpen = !_libraryPanelOpen),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

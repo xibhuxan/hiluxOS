@@ -35,7 +35,9 @@ class StatusPanel extends ConsumerWidget {
     // radio/media watchers must be unconditionally created so Riverpod can
     // rebuild the panel when playback changes while the screen is showing.
     final radioName = ref.watch(radioProvider.select((s) => s.current?.name));
-    final mediaName = ref.watch(mediaProvider.select((s) => s.current?.displayName));
+    final mediaName = ref.watch(
+      mediaProvider.select((s) => s.current?.displayName),
+    );
 
     final title = shellTitleFor(
       routeLocation,
@@ -43,9 +45,11 @@ class StatusPanel extends ConsumerWidget {
       mediaTrack: routeLocation == '/media' ? mediaName : null,
     );
 
-    final time = '${now.hour.toString().padLeft(2, '0')}:'
+    final time =
+        '${now.hour.toString().padLeft(2, '0')}:'
         '${now.minute.toString().padLeft(2, '0')}';
-    final date = '${_weekday(now.weekday)} '
+    final date =
+        '${_weekday(now.weekday)} '
         '${now.day.toString().padLeft(2, '0')} ${_month(now.month)}';
 
     return Container(
@@ -67,8 +71,22 @@ class StatusPanel extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(time, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, height: 1.1)),
-              Text(date, style: const TextStyle(color: AppColors.muted, fontSize: 11, height: 1.1)),
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  height: 1.1,
+                ),
+              ),
+              Text(
+                date,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 11,
+                  height: 1.1,
+                ),
+              ),
             ],
           ),
           // Current app title (blank on the home screen so nothing shows)
@@ -91,9 +109,22 @@ class StatusPanel extends ConsumerWidget {
     );
   }
 
-  String _weekday(int i) => const ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i - 1];
-  String _month(int i) =>
-      const ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][i - 1];
+  String _weekday(int i) =>
+      const ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][i - 1];
+  String _month(int i) => const [
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
+  ][i - 1];
 
   /// Builds the current-app title segment for the top bar. Returns null (so
   /// nothing renders) on the home screen, or a vertical separator + title on
@@ -112,7 +143,10 @@ class StatusPanel extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
         ),
       ),
     ];
@@ -160,11 +194,14 @@ class _AppsButton extends StatelessWidget {
             children: [
               Icon(Icons.apps, size: 20, color: Color(0xFF0d1117)),
               SizedBox(width: 6),
-              Text('Apps',
-                  style: TextStyle(
-                      color: Color(0xFF0d1117),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700)),
+              Text(
+                'Apps',
+                style: TextStyle(
+                  color: Color(0xFF0d1117),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ],
           ),
         ),
@@ -191,7 +228,11 @@ class _NotificationBell extends StatelessWidget {
           padding: const EdgeInsets.all(10),
           child: Stack(
             children: [
-              const Icon(Icons.notifications_outlined, size: 20, color: AppColors.onBackground),
+              const Icon(
+                Icons.notifications_outlined,
+                size: 20,
+                color: AppColors.onBackground,
+              ),
               if (count > 0)
                 Positioned(
                   right: -2,
@@ -202,10 +243,17 @@ class _NotificationBell extends StatelessWidget {
                       color: AppColors.danger,
                       shape: BoxShape.circle,
                     ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
                     child: Text(
                       count > 99 ? '99+' : '$count',
-                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -237,8 +285,8 @@ class _VolumeControlState extends ConsumerState<_VolumeControl> {
     final vol = audio.volume == null
         ? 0.0
         : _dragging && _drag != null
-            ? _drag!
-            : (audio.volume!.clamp(0, 100).toDouble());
+        ? _drag!
+        : (audio.volume!.clamp(0, 100).toDouble());
     final effective = muted ? 0.0 : vol;
 
     return Container(
@@ -252,11 +300,15 @@ class _VolumeControlState extends ConsumerState<_VolumeControl> {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: audio.volume == null ? null : () => ref.read(audioProvider.notifier).toggleMuted(),
+            onTap: audio.volume == null
+                ? null
+                : () => ref.read(audioProvider.notifier).toggleMuted(),
             child: Padding(
               padding: const EdgeInsets.all(6),
               child: Icon(
-                muted || effective == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                muted || effective == 0
+                    ? Icons.volume_off_outlined
+                    : Icons.volume_up_outlined,
                 size: 18,
                 color: muted ? AppColors.muted : AppColors.onBackground,
               ),
@@ -277,6 +329,12 @@ class _VolumeControlState extends ConsumerState<_VolumeControl> {
                 onChanged: audio.volume == null
                     ? null
                     : (v) {
+                        // Live while dragging: the volume follows the finger
+                        // in real time (throttled backend PUTs). Local state
+                        // keeps the thumb glued to the drag gesture.
+                        ref
+                            .read(audioProvider.notifier)
+                            .setVolumeLive(v.round());
                         setState(() {
                           _drag = v;
                           _dragging = true;
@@ -284,6 +342,7 @@ class _VolumeControlState extends ConsumerState<_VolumeControl> {
                       },
                 onChangeEnd: (v) {
                   setState(() => _dragging = false);
+                  // Final value: full set (PUT + refresh) for consistency.
                   ref.read(audioProvider.notifier).setVolume(v.round());
                 },
               ),
@@ -294,4 +353,3 @@ class _VolumeControlState extends ConsumerState<_VolumeControl> {
     );
   }
 }
-

@@ -79,6 +79,11 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
     _frame = SpectrumFrame(_bars, _peaks);
     _ticker = createTicker(_onTick);
     _ticker.start();
+    // Cold-start at the [active] target instead of ramping up from idle:
+    // a fullscreen spectrum mounted while already playing would otherwise
+    // fade in from ~40% brightness for a second (looks like a dark layer).
+    _energy = widget.active ? 1.0 : 0.05;
+    _dim = widget.active ? 1.0 : 0.35;
   }
 
   @override
@@ -94,10 +99,11 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
   void _onTick(Duration elapsed) {
     if (!mounted) return;
     // Real delta time in seconds (clamped to avoid huge jumps after stalls).
-    final dt = (_lastElapsed == Duration.zero
-            ? 0.016
-            : (elapsed - _lastElapsed).inMicroseconds / 1e6)
-        .clamp(0.001, 0.05);
+    final dt =
+        (_lastElapsed == Duration.zero
+                ? 0.016
+                : (elapsed - _lastElapsed).inMicroseconds / 1e6)
+            .clamp(0.001, 0.05);
     _lastElapsed = elapsed;
     _phase += dt * 15;
 
@@ -120,9 +126,11 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
       _lastRealBands = realBands;
       _upsCount++;
       if (realBands != null && _prevRawValues != null) {
-        for (var i = 0;
-            i < realBands.length && i < _prevRawValues!.length;
-            i++) {
+        for (
+          var i = 0;
+          i < realBands.length && i < _prevRawValues!.length;
+          i++
+        ) {
           if ((realBands[i] - _prevRawValues![i]).abs() > 0.001) {
             _bandChangeAt[i] = _clock;
             _contentChanges++;
@@ -226,8 +234,11 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
 
     // Center-emphasis so the middle bars (where energy concentrates in
     // most music) are taller, tapering at the edges like a real spectrum.
-    final centerFactor = 1 - ((i - _bars.length / 2).abs() / (_bars.length / 2));
-    return (w1 * 0.5 + w2 * 0.25 + impulse) * _energy * (0.4 + centerFactor * 0.6);
+    final centerFactor =
+        1 - ((i - _bars.length / 2).abs() / (_bars.length / 2));
+    return (w1 * 0.5 + w2 * 0.25 + impulse) *
+        _energy *
+        (0.4 + centerFactor * 0.6);
   }
 
   @override
@@ -243,11 +254,7 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
           ),
         ),
         if (widget.showStyleButton)
-          Positioned(
-            top: 0,
-            right: 0,
-            child: _styleMenuButton(style),
-          ),
+          Positioned(top: 0, right: 0, child: _styleMenuButton(style)),
       ],
     );
   }
@@ -273,8 +280,11 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
         for (final s in VisualizerStyle.values)
           PopupMenuItem(
             value: s.name,
-            child: _menuRow(s.icon, s.label,
-                selected: s == style.style && !style.random),
+            child: _menuRow(
+              s.icon,
+              s.label,
+              selected: s == style.style && !style.random,
+            ),
           ),
         const PopupMenuDivider(),
         PopupMenuItem(
@@ -286,12 +296,21 @@ class _SpectrumVisualizerState extends ConsumerState<SpectrumVisualizer>
   }
 
   Widget _menuRow(IconData icon, String label, {required bool selected}) {
-    return Row(children: [
-      Icon(icon, size: 18, color: selected ? AppColors.primary : AppColors.muted),
-      const SizedBox(width: 8),
-      Text(label,
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: selected ? AppColors.primary : AppColors.muted,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
           style: TextStyle(
-              color: selected ? AppColors.primary : AppColors.onBackground)),
-    ]);
+            color: selected ? AppColors.primary : AppColors.onBackground,
+          ),
+        ),
+      ],
+    );
   }
 }

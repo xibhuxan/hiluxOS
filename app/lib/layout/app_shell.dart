@@ -33,10 +33,22 @@ class AppShellState extends ConsumerState<AppShell> {
   /// Active full-screen content (tap-to-exit now-playing), or null.
   FullscreenBuilder? _fullscreenBuilder;
 
+  /// Backdrop for the active full-screen content (black for album art,
+  /// the panel surface tone for the spectrum — see FullscreenHost).
+  Color _fullscreenBackground = Colors.black;
+
   /// Show [builder]'s content full-screen (tap anywhere exits). Available to
-  /// any screen inside the shell via its ancestor AppShellState.
-  void enterFullscreen(FullscreenBuilder builder) {
-    setState(() => _fullscreenBuilder = builder);
+  /// any screen inside the shell via its ancestor AppShellState. [background]
+  /// picks the backdrop (album art: pure black; spectrum: surface tone so the
+  /// painters' translucent colors don't read darker than in their Card).
+  void enterFullscreen(
+    FullscreenBuilder builder, {
+    Color background = Colors.black,
+  }) {
+    setState(() {
+      _fullscreenBuilder = builder;
+      _fullscreenBackground = background;
+    });
   }
 
   void _exitFullscreen() {
@@ -166,7 +178,11 @@ class AppShellState extends ConsumerState<AppShell> {
         // status panel too — the whole screen goes black. It never coexists
         // with the keyboard (no text fields in full-screen content).
         if (_fullscreenBuilder != null)
-          FullscreenHost(builder: _fullscreenBuilder!, onExit: _exitFullscreen),
+          FullscreenHost(
+            builder: _fullscreenBuilder!,
+            onExit: _exitFullscreen,
+            background: _fullscreenBackground,
+          ),
       ],
     );
   }

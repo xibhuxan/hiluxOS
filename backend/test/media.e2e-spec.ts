@@ -300,5 +300,57 @@ describe('MediaController (e2e)', () => {
 
       expect(res.status).toBe(404);
     });
+
+    it('GET /folders/browse lists one level of a real directory', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hiluxos-pick-'));
+      fs.mkdirSync(path.join(dir, 'albums'));
+      fs.mkdirSync(path.join(dir, '.hidden'));
+      fs.writeFileSync(path.join(dir, 'song.mp3'), 'x');
+
+      const res = await agent(app).get('/api/media/folders/browse').query({
+        path: dir,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        path: dir,
+        parent: path.dirname(dir),
+        home: os.homedir(),
+        readable: true,
+      });
+      expect(res.body.dirs).toEqual([
+        { name: 'albums', path: path.join(dir, 'albums') },
+      ]);
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('GET /folders/browse without a path lists the filesystem root', async () => {
+      const res = await agent(app).get('/api/media/folders/browse');
+
+      expect(res.status).toBe(200);
+      expect(res.body.parent).toBeNull();
+      expect(res.body.readable).toBe(true);
+      expect(res.body.dirs.length).toBeGreaterThan(0);
+    });
+
+    it('GET /folders/browse 400s for a path that is a file', async () => {
+      const file = path.join(os.tmpdir(), `hiluxos-f-${Date.now()}.txt`);
+      fs.writeFileSync(file, 'x');
+
+      const res = await agent(app)
+        .get('/api/media/folders/browse')
+        .query({ path: file });
+
+      expect(res.status).toBe(400);
+      fs.rmSync(file, { force: true });
+    });
+
+    it('GET /folders/browse 400s for a path that does not exist', async () => {
+      const res = await agent(app)
+        .get('/api/media/folders/browse')
+        .query({ path: '/definitely/not/here' });
+
+      expect(res.status).toBe(400);
+    });
   });
 });

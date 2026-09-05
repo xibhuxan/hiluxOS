@@ -24,13 +24,18 @@ class _SplashScreenState extends State<SplashScreen>
     duration: const Duration(seconds: 4),
   );
 
-  late final Animation<double> _fade = CurvedAnimation(parent: _enter, curve: Curves.easeOut);
-  late final Animation<Offset> _slide =
-      Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
-          .animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
-  late final Animation<double> _scale =
-      Tween<double>(begin: 0.9, end: 1.0)
-          .animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutBack));
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _enter,
+    curve: Curves.easeOut,
+  );
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(0, 0.25),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
+  late final Animation<double> _scale = Tween<double>(
+    begin: 0.9,
+    end: 1.0,
+  ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutBack));
 
   @override
   void initState() {
@@ -83,7 +88,9 @@ class _SplashScreenState extends State<SplashScreen>
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
                                   colors: [
-                                    AppColors.primary.withValues(alpha: 0.35 * t),
+                                    AppColors.primary.withValues(
+                                      alpha: 0.35 * t,
+                                    ),
                                     AppColors.primary.withValues(alpha: 0),
                                   ],
                                   stops: const [0, 1],
@@ -94,7 +101,24 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(28),
-                          child: Image.asset('assets/images/hilux_99.png', width: 345),
+                          // errorBuilder: if the asset ever fails to load
+                          // (e.g. a stale build missing it), show the brand
+                          // icon instead of the raw Flutter error widget.
+                          child: Image.asset(
+                            'assets/images/hilux_99.png',
+                            width: 345,
+                            errorBuilder: (_, _, _) => Container(
+                              width: 345,
+                              height: 260,
+                              color: AppColors.surfaceVariant,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.directions_car_filled,
+                                size: 140,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -109,8 +133,14 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text('Infotainment System',
-                        style: TextStyle(color: AppColors.muted, letterSpacing: 2, fontSize: 12)),
+                    const Text(
+                      'Infotainment System',
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        letterSpacing: 2,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 36),
                     SizedBox(
                       width: 240,

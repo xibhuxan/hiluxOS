@@ -20,6 +20,13 @@ class AudioNotifier extends StateNotifier<AudioState> {
   final ApiClient _api;
   late final Timer _timer;
 
+  /// In-flight live-update flag + queued last value for the drag throttle.
+  /// Drags fire onChanged many times per second; the backend runs amixer per
+  /// PUT, so we throttle: one request at a time, the latest value queued and
+  /// sent as soon as the previous one finishes (leader + trailing queue).
+  bool _liveBusy = false;
+  int? _liveQueued;
+
   Future<void> refresh() async {
     try {
       final res = await _api.get('/system/audio');
@@ -37,6 +44,35 @@ class AudioNotifier extends StateNotifier<AudioState> {
       await _api.put('/system/audio', data: {'volume': pct});
     } catch (_) {}
     await refresh();
+  }
+
+  /// Live volume update while the slider is being dragged: applies the
+  /// value to the state immediately (the slider follows the finger) and
+  /// throttles the backend PUTs so a fast drag doesn't spawn dozens of
+  /// amixer calls. Leader + trailing queue: while a PUT is in flight the
+  /// latest value is remembered and sent next; the loop drains until no
+  /// new value arrived, so the final value always reaches the backend.
+  Future<void> setVolumeLive(int pct) async {
+    state = state.copyWith(volume: pct);
+    if (_liveBusy) {
+      _liveQueued = pct;
+      return;
+    }
+    _liveBusy = true;
+    try {
+      var next = pct;
+      while (true) {
+        try {
+          await _api.put('/system/audio', data: {'volume': next});
+        } catch (_) {}
+        final queued = _liveQueued;
+        _liveQueued = null;
+        if (queued == null || queued == next) break;
+        next = queued;
+      }
+    } finally {
+      _liveBusy = false;
+    }
   }
 
   Future<void> toggleMuted() async {
@@ -66,14 +102,19 @@ class WifiNetwork {
   final int signal;
   final bool secure;
   final bool inRange;
-  const WifiNetwork({required this.ssid, this.signal = 0, this.secure = false, this.inRange = false});
+  const WifiNetwork({
+    required this.ssid,
+    this.signal = 0,
+    this.secure = false,
+    this.inRange = false,
+  });
 
   factory WifiNetwork.fromJson(Map<String, dynamic> j) => WifiNetwork(
-        ssid: j['ssid'] as String,
-        signal: (j['signal'] as num?)?.toInt() ?? 0,
-        secure: j['secure'] as bool? ?? false,
-        inRange: j['inRange'] as bool? ?? false,
-      );
+    ssid: j['ssid'] as String,
+    signal: (j['signal'] as num?)?.toInt() ?? 0,
+    secure: j['secure'] as bool? ?? false,
+    inRange: j['inRange'] as bool? ?? false,
+  );
 }
 
 class NetworkState {
@@ -99,15 +140,14 @@ class NetworkState {
     List<WifiNetwork>? networks,
     bool? scanning,
     String? error,
-  }) =>
-      NetworkState(
-        wifiEnabled: wifiEnabled ?? this.wifiEnabled,
-        connected: connected ?? this.connected,
-        ssid: ssid ?? this.ssid,
-        networks: networks ?? this.networks,
-        scanning: scanning ?? this.scanning,
-        error: error,
-      );
+  }) => NetworkState(
+    wifiEnabled: wifiEnabled ?? this.wifiEnabled,
+    connected: connected ?? this.connected,
+    ssid: ssid ?? this.ssid,
+    networks: networks ?? this.networks,
+    scanning: scanning ?? this.scanning,
+    error: error,
+  );
 }
 
 class NetworkNotifier extends StateNotifier<NetworkState> {
@@ -154,10 +194,13 @@ class NetworkNotifier extends StateNotifier<NetworkState> {
 
   Future<void> connect(String ssid, String? password) async {
     try {
-      await _api.post('/system/network/wifi/connect', data: {
-        'ssid': ssid,
-        if (password != null && password.isNotEmpty) 'password': password,
-      });
+      await _api.post(
+        '/system/network/wifi/connect',
+        data: {
+          'ssid': ssid,
+          if (password != null && password.isNotEmpty) 'password': password,
+        },
+      );
       await refresh();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -208,11 +251,11 @@ class BluetoothDevice {
   });
 
   factory BluetoothDevice.fromJson(Map<String, dynamic> j) => BluetoothDevice(
-        mac: j['mac'] as String,
-        name: (j['name'] as String?) ?? 'Unknown',
-        paired: j['paired'] as bool? ?? false,
-        connected: j['connected'] as bool? ?? false,
-      );
+    mac: j['mac'] as String,
+    name: (j['name'] as String?) ?? 'Unknown',
+    paired: j['paired'] as bool? ?? false,
+    connected: j['connected'] as bool? ?? false,
+  );
 }
 
 class BluetoothState {
@@ -235,14 +278,13 @@ class BluetoothState {
     List<BluetoothDevice>? devices,
     bool? scanning,
     String? error,
-  }) =>
-      BluetoothState(
-        powered: powered ?? this.powered,
-        connected: connected ?? this.connected,
-        devices: devices ?? this.devices,
-        scanning: scanning ?? this.scanning,
-        error: error,
-      );
+  }) => BluetoothState(
+    powered: powered ?? this.powered,
+    connected: connected ?? this.connected,
+    devices: devices ?? this.devices,
+    scanning: scanning ?? this.scanning,
+    error: error,
+  );
 }
 
 class BluetoothNotifier extends StateNotifier<BluetoothState> {
@@ -288,10 +330,10 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
 
   Future<void> pair(String mac, String? pin) async {
     try {
-      await _api.post('/system/network/bluetooth/pair', data: {
-        'mac': mac,
-        if (pin != null && pin.isNotEmpty) 'pin': pin,
-      });
+      await _api.post(
+        '/system/network/bluetooth/pair',
+        data: {'mac': mac, if (pin != null && pin.isNotEmpty) 'pin': pin},
+      );
       await scan();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -309,7 +351,10 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
 
   Future<void> disconnect(String mac) async {
     try {
-      await _api.post('/system/network/bluetooth/disconnect', data: {'mac': mac});
+      await _api.post(
+        '/system/network/bluetooth/disconnect',
+        data: {'mac': mac},
+      );
       await scan();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -332,6 +377,7 @@ class BluetoothNotifier extends StateNotifier<BluetoothState> {
   }
 }
 
-final bluetoothProvider = StateNotifierProvider<BluetoothNotifier, BluetoothState>(
-  (ref) => BluetoothNotifier(ref.watch(apiClientProvider)),
-);
+final bluetoothProvider =
+    StateNotifierProvider<BluetoothNotifier, BluetoothState>(
+      (ref) => BluetoothNotifier(ref.watch(apiClientProvider)),
+    );

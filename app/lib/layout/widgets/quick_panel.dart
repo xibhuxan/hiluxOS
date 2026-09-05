@@ -30,16 +30,21 @@ class QuickPanelState extends ConsumerState<QuickPanel>
       duration: const Duration(milliseconds: 300),
     );
     _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) widget.onOpenChanged?.call(true);
-      if (status == AnimationStatus.dismissed) widget.onOpenChanged?.call(false);
+      if (status == AnimationStatus.completed) {
+        widget.onOpenChanged?.call(true);
+      }
+      if (status == AnimationStatus.dismissed) {
+        widget.onOpenChanged?.call(false);
+      }
     });
     _slide = Tween<Offset>(
       begin: const Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _fade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _fade = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -99,19 +104,25 @@ class QuickPanelState extends ConsumerState<QuickPanel>
                   // Toggles row: WiFi, Bluetooth
                   Row(
                     children: [
-                      Expanded(child: _ToggleTile(
-                        icon: Icons.wifi,
-                        label: 'WiFi',
-                        provider: networkProvider,
-                        onChanged: (ref) => ref.read(networkProvider.notifier).toggle(),
-                      )),
+                      Expanded(
+                        child: _ToggleTile(
+                          icon: Icons.wifi,
+                          label: 'WiFi',
+                          provider: networkProvider,
+                          onChanged: (ref) =>
+                              ref.read(networkProvider.notifier).toggle(),
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _ToggleTile(
-                        icon: Icons.bluetooth,
-                        label: 'Bluetooth',
-                        provider: bluetoothProvider,
-                        onChanged: (ref) => ref.read(bluetoothProvider.notifier).toggle(),
-                      )),
+                      Expanded(
+                        child: _ToggleTile(
+                          icon: Icons.bluetooth,
+                          label: 'Bluetooth',
+                          provider: bluetoothProvider,
+                          onChanged: (ref) =>
+                              ref.read(bluetoothProvider.notifier).toggle(),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -122,6 +133,7 @@ class QuickPanelState extends ConsumerState<QuickPanel>
                     provider: audioProvider,
                     getValue: _audioValue,
                     onChanged: _audioChanged,
+                    onChangedEnd: _audioFinished,
                   ),
                   const SizedBox(height: 12),
                   // Brightness slider
@@ -155,6 +167,12 @@ double _brightnessValue(WidgetRef ref) {
 }
 
 void _audioChanged(WidgetRef ref, double v) {
+  ref.read(audioProvider.notifier).setVolumeLive(v.round());
+}
+
+/// Drag end: the completion call (PUT + refresh) settles the throttled
+/// live updates on a consistent backend state.
+void _audioFinished(WidgetRef ref, double v) {
   ref.read(audioProvider.notifier).setVolume(v.round());
 }
 
@@ -197,14 +215,21 @@ class _ToggleTile extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: enabled ? AppColors.primary : AppColors.muted),
+          Icon(
+            icon,
+            size: 20,
+            color: enabled ? AppColors.primary : AppColors.muted,
+          ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: enabled ? AppColors.onBackground : AppColors.muted)),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: enabled ? AppColors.onBackground : AppColors.muted,
+              ),
+            ),
           ),
           GestureDetector(
             onTap: () => onChanged(ref),
@@ -217,7 +242,9 @@ class _ToggleTile extends ConsumerWidget {
               ),
               child: AnimatedAlign(
                 duration: const Duration(milliseconds: 200),
-                alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
+                alignment: enabled
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
                 child: Container(
                   width: 22,
                   height: 22,
@@ -238,13 +265,14 @@ class _ToggleTile extends ConsumerWidget {
 
 // ---- Slider tile (Volume / Brightness) ----
 
-class _SliderTile extends ConsumerWidget {
+class _SliderTile extends ConsumerStatefulWidget {
   const _SliderTile({
     required this.icon,
     required this.label,
     required this.provider,
     required this.getValue,
     required this.onChanged,
+    this.onChangedEnd,
   });
 
   final IconData icon;
@@ -253,9 +281,23 @@ class _SliderTile extends ConsumerWidget {
   final double Function(WidgetRef ref) getValue;
   final void Function(WidgetRef ref, double value) onChanged;
 
+  /// Fired on drag end with the final value — the completion call (PUT +
+  /// refresh), so the throttled live updates settle on a consistent state.
+  final void Function(WidgetRef ref, double value)? onChangedEnd;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final value = getValue(ref);
+  ConsumerState<_SliderTile> createState() => _SliderTileState();
+}
+
+class _SliderTileState extends ConsumerState<_SliderTile> {
+  /// Slider value while dragging (the finger's), null when idle. Keeps the
+  /// thumb glued to the gesture even when the provider updates mid-drag.
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.getValue(ref);
+    final dragging = _dragValue != null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -265,15 +307,18 @@ class _SliderTile extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.onBackground),
+          Icon(widget.icon, size: 18, color: AppColors.onBackground),
           const SizedBox(width: 10),
           SizedBox(
             width: 64,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onBackground)),
+            child: Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onBackground,
+              ),
+            ),
           ),
           Expanded(
             child: SliderTheme(
@@ -289,24 +334,37 @@ class _SliderTile extends ConsumerWidget {
                 min: 0,
                 max: 100,
                 divisions: 100,
-                value: value.clamp(0, 100),
-                onChanged: (v) => onChanged(ref, v),
+                // While dragging, show the local value (the finger's), not
+                // the throttled provider one — the thumb stays glued.
+                value: (dragging ? _dragValue! : value).clamp(0, 100),
+                onChanged: widget.provider == null
+                    ? null
+                    : (v) {
+                        setState(() => _dragValue = v);
+                        widget.onChanged(ref, v);
+                      },
+                onChangeEnd: (v) {
+                  setState(() => _dragValue = null);
+                  // Final value: full set (PUT + refresh) for consistency.
+                  widget.onChangedEnd?.call(ref, v);
+                },
               ),
             ),
           ),
           SizedBox(
             width: 32,
-            child: Text('${value.round()}',
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.muted)),
+            child: Text(
+              '${(dragging ? _dragValue! : value).round()}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.muted,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-

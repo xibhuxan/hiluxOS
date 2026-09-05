@@ -43,10 +43,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Left column: now-playing + visualizer + controls ──
-          Expanded(
-            flex: 5,
-            child: _leftColumn(state),
-          ),
+          Expanded(flex: 5, child: _leftColumn(state)),
           // ── Right column: search / favorites / history (collapsible) ──
           _rightColumn(state),
         ],
@@ -88,13 +85,21 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         IconButton(
-          icon: const Icon(Icons.stop_circle_outlined, color: AppColors.danger, size: 36),
-          onPressed: state.current == null ? null : () => ref.read(radioProvider.notifier).stop(),
+          icon: const Icon(
+            Icons.stop_circle_outlined,
+            color: AppColors.danger,
+            size: 36,
+          ),
+          onPressed: state.current == null
+              ? null
+              : () => ref.read(radioProvider.notifier).stop(),
         ),
         IconButton(
           iconSize: 56,
           icon: Icon(
-            state.isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+            state.isPlaying
+                ? Icons.pause_circle_filled
+                : Icons.play_circle_filled,
             color: AppColors.primary,
           ),
           onPressed: state.current == null
@@ -106,7 +111,8 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         ),
         IconButton(
           icon: Icon(
-            state.current != null && state.favorites.any((s) => s.url == state.current!.url)
+            state.current != null &&
+                    state.favorites.any((s) => s.url == state.current!.url)
                 ? Icons.favorite
                 : Icons.favorite_border,
             color: AppColors.danger,
@@ -114,7 +120,9 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
           ),
           onPressed: state.current == null
               ? null
-              : () => ref.read(radioProvider.notifier).toggleFavorite(state.current!),
+              : () => ref
+                    .read(radioProvider.notifier)
+                    .toggleFavorite(state.current!),
         ),
         IconButton(
           tooltip: _searchPanelOpen ? 'Ocultar lista' : 'Mostrar lista',
@@ -131,15 +139,17 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         IconButton(
           tooltip: 'Pantalla completa',
           icon: const Icon(Icons.fullscreen, size: 32),
-          onPressed: () => context
-                  .findAncestorStateOfType<AppShellState>()
-                  ?.enterFullscreen(
+          onPressed: () =>
+              context.findAncestorStateOfType<AppShellState>()?.enterFullscreen(
                 (context, exit) => Consumer(
                   builder: (context, ref, _) => SpectrumVisualizer(
                     active: ref.watch(radioProvider).isPlaying,
                     showStyleButton: true,
                   ),
                 ),
+                // The panel surface tone as backdrop — on pure black the
+                // painters' translucent colors read darker than in the Card.
+                background: AppColors.surface,
               ),
         ),
       ],
@@ -158,10 +168,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
           minWidth: 360,
           maxWidth: 360,
           alignment: Alignment.centerLeft,
-          child: SizedBox(
-            width: 360,
-            child: _searchPanel(state),
-          ),
+          child: SizedBox(width: 360, child: _searchPanel(state)),
         ),
       ),
     );
@@ -187,7 +194,8 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.send),
-                    onPressed: () => ref.read(radioProvider.notifier).search(_query.text),
+                    onPressed: () =>
+                        ref.read(radioProvider.notifier).search(_query.text),
                   ),
                 ),
               ),
@@ -204,9 +212,18 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   Widget _sourceSelector() {
     return SegmentedButton<_Source>(
       segments: const [
-        ButtonSegment(value: _Source.search, icon: Icon(Icons.search, size: 18)),
-        ButtonSegment(value: _Source.favorites, icon: Icon(Icons.star, size: 18)),
-        ButtonSegment(value: _Source.history, icon: Icon(Icons.history, size: 18)),
+        ButtonSegment(
+          value: _Source.search,
+          icon: Icon(Icons.search, size: 18),
+        ),
+        ButtonSegment(
+          value: _Source.favorites,
+          icon: Icon(Icons.star, size: 18),
+        ),
+        ButtonSegment(
+          value: _Source.history,
+          icon: Icon(Icons.history, size: 18),
+        ),
       ],
       selected: {_source},
       onSelectionChanged: (s) => setState(() => _source = s.first),
@@ -221,7 +238,9 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   Widget _sourceList(RadioState state) {
     switch (_source) {
       case _Source.search:
-        if (state.loading) return const Center(child: CircularProgressIndicator());
+        if (state.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
         if (state.error != null) return Center(child: Text(state.error!));
         return _listTab(state.searchResults, emptyText: 'Escribe para buscar');
       case _Source.favorites:
@@ -233,23 +252,41 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
 
   Widget _listTab(List<Station> stations, {required String emptyText}) {
     if (stations.isEmpty) {
-      return Center(child: Text(emptyText, style: const TextStyle(color: AppColors.muted)));
+      return Center(
+        child: Text(emptyText, style: const TextStyle(color: AppColors.muted)),
+      );
     }
     return ListView.builder(
       itemCount: stations.length,
       itemBuilder: (context, i) {
         final s = stations[i];
-        final isFav = ref.watch(radioProvider).favorites.any((f) => f.url == s.url);
+        final isFav = ref
+            .watch(radioProvider)
+            .favorites
+            .any((f) => f.url == s.url);
         return ListTile(
           leading: s.favicon != null && s.favicon!.isNotEmpty
-              ? Image.network(s.favicon!, width: 40, height: 40, errorBuilder: (_, _, _) =>
-                  const Icon(Icons.radio, color: AppColors.primary))
+              ? Image.network(
+                  s.favicon!,
+                  width: 40,
+                  height: 40,
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.radio, color: AppColors.primary),
+                )
               : const Icon(Icons.radio, color: AppColors.primary),
           title: Text(s.name),
-          subtitle: Text([if (s.country != null) s.country!, if (s.codec != null) s.codec!].join(' · '),
-              style: const TextStyle(color: AppColors.muted)),
+          subtitle: Text(
+            [
+              if (s.country != null) s.country!,
+              if (s.codec != null) s.codec!,
+            ].join(' · '),
+            style: const TextStyle(color: AppColors.muted),
+          ),
           trailing: IconButton(
-            icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, color: AppColors.danger),
+            icon: Icon(
+              isFav ? Icons.favorite : Icons.favorite_border,
+              color: AppColors.danger,
+            ),
             onPressed: () => ref.read(radioProvider.notifier).toggleFavorite(s),
           ),
           onTap: () => ref.read(radioProvider.notifier).play(s),
