@@ -53,7 +53,8 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     );
   }
 
-  /// Left column: station info, spectrum visualizer (full-height protagonist),
+  /// Left column: spectrum visualizer (full-height protagonist — the top
+  /// bar already shows the `Radio — emisora` title, so no in-screen title),
   /// and playback controls laid out vertically.
   Widget _leftColumn(RadioState state) {
     return Padding(
@@ -61,29 +62,6 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (state.current != null) ...[
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(state.current!.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  if (state.current!.country != null)
-                    Text(state.current!.country!, style: const TextStyle(color: AppColors.muted)),
-                ],
-              ),
-            ),
-          ] else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text('Selecciona una emisora',
-                    style: TextStyle(color: AppColors.muted, fontSize: 16)),
-              ),
-            ),
           // Spectrum visualizer — the protagonist. Fills remaining space.
           Expanded(
             child: Card(

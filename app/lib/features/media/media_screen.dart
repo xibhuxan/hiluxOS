@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../core/utils/config.dart';
 import '../../core/widgets/staggered_entrance.dart';
 import 'media_provider.dart';
 import 'models/track.dart';
@@ -13,6 +14,12 @@ class MediaScreen extends ConsumerStatefulWidget {
 
 class _MediaScreenState extends ConsumerState<MediaScreen> {
   final _query = TextEditingController();
+
+  /// Side-panel collapse state (same pattern as Radio's search panel):
+  /// false → the AnimatedContainer shrinks to 0 width with the panel
+  /// contents clipped inside an OverflowBox.
+  bool _folderPanelOpen = true;
+  bool _libraryPanelOpen = true;
 
   @override
   void initState() {
@@ -51,15 +58,66 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (wide) ...[
-              _folderTree(state),
-              const SizedBox(width: 12),
-            ],
+            if (wide) ...[_folderColumn(state)],
             Expanded(flex: 5, child: _leftColumn(state)),
             _rightColumn(state),
           ],
         );
       }),
+    );
+  }
+
+  /// Left rail as a collapsible column: animated 280↔0 width. Same mechanic
+  /// as Radio's right panel — AnimatedContainer + clipped OverflowBox so the
+  /// contents keep their natural width while the container shrinks.
+  Widget _folderColumn(MediaState state) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOutCubic,
+      width: _folderPanelOpen ? 292 : 0,
+      child: ClipRect(
+        child: OverflowBox(
+          minWidth: 292,
+          maxWidth: 292,
+          alignment: Alignment.centerRight,
+          child: SizedBox(
+            width: 292,
+            child: Row(
+              children: [
+                Expanded(child: _folderTree(state)),
+                const SizedBox(width: 12),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Right column (the library) — same collapsible mechanic, 380↔0. The
+  /// 12px gutter sits on the inner side, so collapsing leaves the center
+  /// panel flush against the screen edge without gaps.
+  Widget _rightColumn(MediaState state) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOutCubic,
+      width: _libraryPanelOpen ? 392 : 0,
+      child: ClipRect(
+        child: OverflowBox(
+          minWidth: 392,
+          maxWidth: 392,
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: 392,
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                Expanded(child: _libraryPanel(state)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -190,46 +248,30 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
   }
 
-  /// Left: now-playing info, art placeholder and a seek bar.
+  /// Left: album art (the protagonist — the top bar already shows
+  /// `Media — canción`, so no in-screen title) and a seek bar below.
   Widget _leftColumn(MediaState state) {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (state.current != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(state.current!.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  if (state.current!.artist != null)
-                    Text(state.current!.artist!,
-                        style: const TextStyle(color: AppColors.muted)),
-                ],
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text('Selecciona una canción',
-                    style: TextStyle(color: AppColors.muted, fontSize: 16)),
-              ),
-            ),
           Expanded(
             child: Card(
-              child: Center(
-                child: Icon(
-                  state.isPlaying ? Icons.graphic_eq : Icons.library_music_outlined,
-                  size: 120,
-                  color: state.isPlaying ? AppColors.primary : AppColors.muted,
-                ),
-              ),
+              clipBehavior: Clip.antiAlias,
+              child: state.current == null
+                  ? Center(
+                      child: Icon(
+                        state.isPlaying ? Icons.graphic_eq : Icons.library_music_outlined,
+                        size: 120,
+                        color: state.isPlaying ? AppColors.primary : AppColors.muted,
+                      ),
+                    )
+                  : _trackArt(
+                      state.current!.id,
+                      fit: BoxFit.contain,
+                      placeholder: _nowPlayingArtPlaceholder(state),
+                    ),
             ),
           ),
           const SizedBox(height: 12),
@@ -238,6 +280,35 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           _controlsRow(state),
         ],
       ),
+    );
+  }
+
+  /// Idle placeholder for the now-playing art card: big music-note icon.
+  Widget _nowPlayingArtPlaceholder(MediaState state) {
+    return Center(
+      child: Icon(
+        state.isPlaying ? Icons.graphic_eq : Icons.library_music_outlined,
+        size: 120,
+        color: state.isPlaying ? AppColors.primary : AppColors.muted,
+      ),
+    );
+  }
+
+  /// The backend art URL for a track id (folder cover or ffmpeg-extracted
+  /// embedded art; same host as the REST API).
+  static String _artUrl(String id) => '${AppConfig.restBase}/media/tracks/$id/art';
+
+  /// Art image with graceful fallback: 404/no-art → [placeholder].
+  Widget _trackArt(String id,
+      {BoxFit fit = BoxFit.cover, Widget? placeholder, double? width, double? height}) {
+    return Image.network(
+      _artUrl(id),
+      fit: fit,
+      width: width,
+      height: height,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) =>
+          placeholder ?? const Icon(Icons.music_note, color: AppColors.muted),
     );
   }
 
@@ -283,12 +354,26 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     );
   }
 
-  /// Playback controls: play/pause + stop.
+  /// Playback controls: prev / play / next, shuffle, stop — flanked by the
+  /// panel-collapse chevrons (left = folder rail, right = library), like
+  /// Radio's search-panel toggle.
   Widget _controlsRow(MediaState state) {
     final notifier = ref.read(mediaProvider.notifier);
+    final wide = MediaQuery.of(context).size.width >= 980;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Left chevron: collapse/expand the folder rail (wide surfaces only).
+        if (wide)
+          IconButton(
+            tooltip: _folderPanelOpen ? 'Ocultar carpetas' : 'Mostrar carpetas',
+            icon: Icon(
+              _folderPanelOpen ? Icons.chevron_left : Icons.chevron_right,
+              color: AppColors.onBackground,
+              size: 30,
+            ),
+            onPressed: () => setState(() => _folderPanelOpen = !_folderPanelOpen),
+          ),
         IconButton(
           iconSize: 32,
           icon: const Icon(Icons.skip_previous),
@@ -323,19 +408,27 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
           icon: const Icon(Icons.stop),
           onPressed: state.current == null ? null : notifier.stop,
         ),
+        // Right chevron: collapse/expand the library panel.
+        IconButton(
+          tooltip: _libraryPanelOpen ? 'Ocultar biblioteca' : 'Mostrar biblioteca',
+          icon: Icon(
+            _libraryPanelOpen ? Icons.chevron_right : Icons.chevron_left,
+            color: AppColors.onBackground,
+            size: 30,
+          ),
+          onPressed: () => setState(() => _libraryPanelOpen = !_libraryPanelOpen),
+        ),
       ],
     );
   }
 
   /// Right: search field, rescan button and the library list.
-  Widget _rightColumn(MediaState state) {
-    return SizedBox(
-      width: 380,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
+  Widget _libraryPanel(MediaState state) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
               Row(
                 children: [
                   Expanded(
@@ -373,7 +466,6 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -404,9 +496,20 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         return StaggeredEntrance(
           index: i,
           child: ListTile(
-            leading: Icon(
-              isCurrent && state.isPlaying ? Icons.graphic_eq : Icons.music_note,
-              color: isCurrent ? AppColors.primary : AppColors.muted,
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: _trackArt(t.id,
+                    placeholder: Icon(
+                      isCurrent && state.isPlaying
+                          ? Icons.graphic_eq
+                          : Icons.music_note,
+                      size: 26,
+                      color: isCurrent ? AppColors.primary : AppColors.muted,
+                    )),
+              ),
             ),
             title: Text(t.title,
                 style: isCurrent

@@ -1,4 +1,6 @@
 import { INestApplication } from '@nestjs/common';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { buildApp, agent, PrismaMock } from './setup';
 import { MediaLibraryService } from '../src/modules/media/media-library.service';
@@ -10,8 +12,12 @@ describe('MediaController (e2e)', () => {
   // A real mp3 on disk so the stream endpoint's sendFile has something to
   // serve (Range support is what makes the player seek work).
   const fixture = path.join(__dirname, 'fixtures', 'tone-e2e.mp3');
+  // Same, but with an embedded (attached_pic) cover — exercises the
+  // ffmpeg extraction path. Its album/ folder provides the folder-cover path.
+  const artFixture = path.join(__dirname, 'fixtures', 'tone-art-e2e.mp3');
+  const artAlbumFixture = path.join(__dirname, 'fixtures', 'album', 'song.mp3');
 
-  const track = (id = 't1') => ({
+  const track = (id = 't1', filePath = fixture) => ({
     id,
     title: 'Test Tone A',
     artist: 'Hilux Soundcheck',
@@ -25,7 +31,7 @@ describe('MediaController (e2e)', () => {
     playCount: 0,
     lastPlayedAt: null,
     // Extra DB columns the mapper ignores:
-    path: fixture,
+    path: filePath,
     sizeBytes: 1000n,
     mtimeMs: 1n,
   });
@@ -143,6 +149,68 @@ describe('MediaController (e2e)', () => {
 
       expect(res.status).toBe(200);
       expect(res.text).toBe('false');
+    });
+  });
+
+  describe('GET /api/media/tracks/:id/art', () => {
+    // Real ffprobe/ffmpeg run here: the art cache must not leak into the
+    // developer's real MEDIA_DIR, so these tests get a throwaway one.
+    // (Setting process.env before buildApp works because dotenv never
+    // overrides pre-existing variables.)
+    const tmpMedia = fs.mkdtempSync(path.join(os.tmpdir(), 'hiluxos-art-'));
+    let artApp: INestApplication;
+    let artPrisma: PrismaMock;
+    const prevMediaDir = process.env.MEDIA_DIR;
+
+    beforeAll(async () => {
+      process.env.MEDIA_DIR = tmpMedia;
+      ({ app: artApp, prisma: artPrisma } = await buildApp());
+    });
+
+    afterAll(async () => {
+      await artApp.close();
+      if (prevMediaDir === undefined) delete process.env.MEDIA_DIR;
+      else process.env.MEDIA_DIR = prevMediaDir;
+      fs.rmSync(tmpMedia, { recursive: true, force: true });
+    });
+
+    it('serves the folder cover when one sits next to the track', async () => {
+      artPrisma.track.findUnique.mockResolvedValue(track('a1', artAlbumFixture));
+
+      const res = await agent(artApp).get('/api/media/tracks/a1/art');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/image\/(jpeg|png)/);
+      expect(res.headers['cache-control']).toContain('max-age');
+      expect(res.body.length).toBeGreaterThan(0);
+    });
+
+    it('extracts embedded art with ffmpeg on first hit and caches it', async () => {
+      artPrisma.track.findUnique.mockResolvedValue(track('a2', artFixture));
+
+      const res = await agent(artApp).get('/api/media/tracks/a2/art');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/image\/(jpeg|png)/);
+      expect(res.body.length).toBeGreaterThan(0);
+      // The extracted jpg now lives in the art cache (a later hit is free).
+      expect(fs.existsSync(path.join(tmpMedia, '.hiluxos-art', 'a2.jpg'))).toBe(true);
+    });
+
+    it('404s for a track with no art', async () => {
+      artPrisma.track.findUnique.mockResolvedValue(track());
+
+      const res = await agent(artApp).get('/api/media/tracks/t1/art');
+
+      expect(res.status).toBe(404);
+    });
+
+    it('404s for an unknown track', async () => {
+      artPrisma.track.findUnique.mockResolvedValue(null);
+
+      const res = await agent(artApp).get('/api/media/tracks/nope/art');
+
+      expect(res.status).toBe(404);
     });
   });
 

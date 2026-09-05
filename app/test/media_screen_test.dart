@@ -131,4 +131,48 @@ void main() {
     expect(find.text('Album'), findsOneWidget);
     expect(find.text('Solo'), findsOneWidget); // still a top-level node
   });
+
+  testWidgets('chevrons collapse and re-open the side panels', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final tracks = [
+      Track(id: 't1', title: 'Root A', durationSec: 5, relPath: 'a.mp3'),
+      Track(id: 't2', title: 'Rock B', durationSec: 5, relPath: 'Rock/b.mp3'),
+    ];
+    await tester.pumpWidget(_wrap(MediaState(tracks: tracks)));
+    await tester.pumpAndSettle();
+
+    // The two collapsible columns are the only AnimatedContainers in the
+    // tree: first = folder rail, last = library panel. (Their clipped
+    // contents stay in the widget tree while collapsed, so the reliable
+    // signal is the rendered size itself.)
+    double panelWidth(int idx) =>
+        tester.getSize(find.byType(AnimatedContainer).at(idx)).width;
+
+    // Both panels open to start.
+    expect(panelWidth(0), 292);
+    expect(panelWidth(1), 392);
+
+    // Left chevron → the folder rail collapses to zero width.
+    await tester.tap(find.byTooltip('Ocultar carpetas'));
+    await tester.pumpAndSettle();
+    expect(panelWidth(0), 0);
+
+    // And it comes back.
+    await tester.tap(find.byTooltip('Mostrar carpetas'));
+    await tester.pumpAndSettle();
+    expect(panelWidth(0), 292);
+
+    // Right chevron → the library panel collapses.
+    await tester.tap(find.byTooltip('Ocultar biblioteca'));
+    await tester.pumpAndSettle();
+    expect(panelWidth(1), 0);
+
+    await tester.tap(find.byTooltip('Mostrar biblioteca'));
+    await tester.pumpAndSettle();
+    expect(panelWidth(1), 392);
+  });
 }
