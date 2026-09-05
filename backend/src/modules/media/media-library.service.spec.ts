@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { MediaLibraryService } from './media-library.service';
+import { MediaFoldersService } from './media-folders.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommandRunner } from '../system/command-runner';
 
@@ -38,13 +38,19 @@ const FFPROBE_JSON = (title: string, duration = 5.0) =>
     },
   });
 
-async function buildService(configValue: unknown, prisma: unknown, cmd: unknown) {
+/// Builds the service with a fake MediaFoldersService whose scanRoots()
+/// resolves to `roots` (or rejects with it when given an Error).
+async function buildService(roots: string[] | Error, prisma: unknown, cmd: unknown) {
+  const folders = {
+    scanRoots: jest.fn().mockImplementation(() =>
+      roots instanceof Error ? Promise.reject(roots) : Promise.resolve(roots)),
+  };
   const module = await Test.createTestingModule({
     providers: [
       MediaLibraryService,
       { provide: PrismaService, useValue: prisma },
       { provide: CommandRunner, useValue: cmd },
-      { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(configValue) } },
+      { provide: MediaFoldersService, useValue: folders },
     ],
   }).compile();
   return module.get(MediaLibraryService);
@@ -68,13 +74,34 @@ describe('MediaLibraryService', () => {
     // Fresh fs mocks per test (Once-returns leak between tests otherwise).
     readdirSync.mockReset();
     statSync.mockReset();
-    service = await buildService('/music', prisma, cmd);
+    service = await buildService(['/music'], prisma, cmd);
   });
 
   describe('scan', () => {
-    it('throws when MEDIA_DIR is not configured', async () => {
-      const svc = await buildService(undefined, prisma, cmd);
+    it('throws when no folder is configured and MEDIA_DIR is unset', async () => {
+      const svc = await buildService(new Error('MEDIA_DIR is not configured'), prisma, cmd);
       await expect(svc.scan()).rejects.toThrow('MEDIA_DIR is not configured');
+    });
+
+    it('scans every configured folder and de-dupes nested roots', async () => {
+      // Two roots: /music (with a.mp3) and /usb (with b.flac). Overlapping
+      // files (same path found through two roots) are only indexed once.
+      readdirSync.mockImplementation((dir: unknown) => {
+        if (dir === '/music') return [dirent('a.mp3', false)];
+        if (dir === '/usb') return [dirent('b.flac', false)];
+        return [];
+      });
+      statSync.mockReturnValue(stat(1000, 1));
+      prisma.track.findMany.mockResolvedValue([]);
+      cmd.run.mockReturnValue(FFPROBE_JSON('X'));
+
+      const svc = await buildService(['/music', '/usb'], prisma, cmd);
+      const res = await svc.scan();
+
+      expect(res).toMatchObject({ scanned: 2, added: 2, updated: 0, removed: 0 });
+      expect(cmd.run).toHaveBeenCalledTimes(2);
+      expect(cmd.run).toHaveBeenCalledWith('ffprobe', expect.arrayContaining(['/music/a.mp3']));
+      expect(cmd.run).toHaveBeenCalledWith('ffprobe', expect.arrayContaining(['/usb/b.flac']));
     });
 
     it('probes and upserts new files with non-empty update', async () => {

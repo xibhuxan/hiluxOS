@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CommandRunner } from '../system/command-runner';
+import { MediaFoldersService } from './media-folders.service';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -18,9 +18,9 @@ export interface ScanResult {
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.ogg', '.oga', '.opus', '.wav', '.m4a']);
 
 /**
- * Indexes the local music library (MEDIA_DIR).
+ * Indexes the local music library (the configured MediaFolder roots).
  *
- * - Walks the tree recursively for audio files.
+ * - Walks every folder tree recursively for audio files.
  * - Probes metadata with `ffprobe` (injectable CommandRunner → mockable).
  * - Incremental: a file whose path+mtimeMs+sizeBytes match the DB row is
  *   skipped without paying an ffprobe spawn.
@@ -35,12 +35,8 @@ export class MediaLibraryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cmd: CommandRunner,
-    private readonly config: ConfigService,
+    private readonly folders: MediaFoldersService,
   ) {}
-
-  get mediaDir(): string {
-    return this.config.get<string>('MEDIA_DIR') ?? '';
-  }
 
   /** Walk a dir collecting absolute paths of supported audio files. */
   private walk(dir: string, out: string[] = []): string[] {
@@ -99,16 +95,15 @@ export class MediaLibraryService {
   }
 
   /**
-   * Scan MEDIA_DIR and sync the index. Safe to call repeatedly; only changed
-   * files cost an ffprobe spawn.
+   * Scan every configured library folder and sync the index. Safe to call
+   * repeatedly; only changed files cost an ffprobe spawn. Folders that no
+   * longer exist on disk are skipped (walk returns empty) — their rows
+   * stay configured and their tracks stay indexed until they're either
+   * re-scanned later or the folder is removed.
    */
   async scan(): Promise<ScanResult> {
-    const dir = this.mediaDir;
-    if (!dir) {
-      throw new Error('MEDIA_DIR is not configured');
-    }
-
-    const files = this.walk(dir);
+    const dirs = await this.folders.scanRoots();
+    const files = dirs.flatMap((d) => this.walk(d));
     const existing = await this.prisma.track.findMany();
     const byPath = new Map(existing.map((t) => [t.path, t]));
 

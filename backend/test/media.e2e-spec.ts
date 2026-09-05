@@ -230,4 +230,75 @@ describe('MediaController (e2e)', () => {
       await scanApp.close();
     });
   });
+
+  describe('Media folders CRUD', () => {
+    const folderRow = (id: string, p: string) => ({ id, path: p, createdAt: new Date(0) });
+
+    it('GET /folders lists folders with a live exists flag', async () => {
+      // A real temp dir (exists) and a path that certainly doesn't.
+      const real = fs.mkdtempSync(path.join(os.tmpdir(), 'hiluxos-folder-'));
+      prisma.mediaFolder.findMany.mockResolvedValue([
+        folderRow('f1', real),
+        folderRow('f2', '/definitely/not/here'),
+      ]);
+
+      const res = await agent(app).get('/api/media/folders');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([
+        { id: 'f1', path: real, label: path.basename(real), exists: true },
+        { id: 'f2', path: '/definitely/not/here', label: 'here', exists: false },
+      ]);
+      fs.rmSync(real, { recursive: true, force: true });
+    });
+
+    it('POST /folders adds an absolute path and returns the DTO', async () => {
+      prisma.mediaFolder.create.mockResolvedValue(folderRow('f1', '/usb/music'));
+
+      const res = await agent(app).post('/api/media/folders').send({ path: '/usb/music' });
+
+      expect(res.status).toBe(201);
+      expect(prisma.mediaFolder.create).toHaveBeenCalledWith({
+        data: { path: '/usb/music' },
+      });
+      expect(res.body).toMatchObject({ id: 'f1', path: '/usb/music', label: 'music' });
+    });
+
+    it('POST /folders rejects a relative path with 400', async () => {
+      const res = await agent(app).post('/api/media/folders').send({ path: 'music' });
+
+      expect(res.status).toBe(400);
+      expect(prisma.mediaFolder.create).not.toHaveBeenCalled();
+    });
+
+    it('POST /folders rejects a duplicate path with 409', async () => {
+      prisma.mediaFolder.findUnique.mockResolvedValue(folderRow('f1', '/usb/music'));
+
+      const res = await agent(app).post('/api/media/folders').send({ path: '/usb/music' });
+
+      expect(res.status).toBe(409);
+    });
+
+    it('DELETE /folders/:id purges the folder tracks and removes it', async () => {
+      prisma.mediaFolder.findUnique.mockResolvedValue(folderRow('f1', '/usb/music'));
+      prisma.track.deleteMany.mockResolvedValue({ count: 2 });
+
+      const res = await agent(app).delete('/api/media/folders/f1');
+
+      expect(res.status).toBe(200);
+      expect(prisma.track.deleteMany).toHaveBeenCalledWith({
+        where: { path: { startsWith: '/usb/music/' } },
+      });
+      expect(prisma.mediaFolder.delete).toHaveBeenCalledWith({ where: { id: 'f1' } });
+      expect(res.body).toEqual({ removed: true, tracks: 2 });
+    });
+
+    it('DELETE /folders/:id 404s for an unknown id', async () => {
+      prisma.mediaFolder.findUnique.mockResolvedValue(null);
+
+      const res = await agent(app).delete('/api/media/folders/nope');
+
+      expect(res.status).toBe(404);
+    });
+  });
 });

@@ -7,6 +7,7 @@ import '../radio/spectrum_provider.dart';
 import '../radio/visualizer_style.dart';
 import '../radio/widgets/spectrum_visualizer.dart';
 import 'media_provider.dart';
+import 'models/media_folder.dart';
 import 'models/track.dart';
 
 class MediaScreen extends ConsumerStatefulWidget {
@@ -49,6 +50,7 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(mediaProvider.notifier).loadTracks();
+      ref.read(mediaProvider.notifier).loadFolders();
     });
   }
 
@@ -216,9 +218,27 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 4, bottom: 8),
-                child: Text('Carpetas',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.muted)),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('Carpetas',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.muted)),
+                    ),
+                    // Add a library folder (the backend persists it in the
+                    // media_folders table and scans it right away).
+                    IconButton(
+                      tooltip: 'Añadir carpeta',
+                      iconSize: 20,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.add, color: AppColors.primary),
+                      onPressed: state.foldersBusy ? null : _promptAddFolder,
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: ListView(
@@ -231,6 +251,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                       count: state.tracks.length,
                       depth: 0,
                     ),
+                    // One header tile per configured folder root (with a
+                    // missing-path warning and a delete action).
+                    for (final f in state.folders) _folderSectionTile(state, f),
                     for (final d in nodes)
                       _folderTile(
                         state,
@@ -277,6 +300,127 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
         onTap: () => setState(() => _openFolder = selected ? null : folder),
       ),
     );
+  }
+
+  /// A configured folder root in the rail: basename + missing warning (⚠ +
+  /// "no disponible") + delete action. Roots are informative in v1 — folder
+  /// browsing stays in the relPath tree below (the backend keeps relPath
+  /// relative to the folder that contains the file).
+  Widget _folderSectionTile(MediaState state, MediaFolder folder) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8.0),
+          child: ListTile(
+            dense: true,
+            leading: Icon(
+              folder.exists ? Icons.source_outlined : Icons.warning_amber_rounded,
+              size: 20,
+              color: folder.exists ? AppColors.muted : AppColors.danger,
+            ),
+            title: Text(
+              folder.exists ? folder.label : '${folder.label} (no disponible)',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: folder.exists
+                  ? null
+                  : const TextStyle(color: AppColors.danger),
+            ),
+            // Delete with confirm — removing purges the folder's tracks
+            // from the index (files on disk stay untouched).
+            trailing: IconButton(
+              tooltip: 'Quitar carpeta',
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(Icons.delete_outline,
+                  size: 18, color: AppColors.muted),
+              onPressed: state.foldersBusy ? null : () => _confirmRemoveFolder(folder),
+            ),
+            onTap: () {
+              if (!folder.exists) {
+                // Explain the warning; missing folders can't be browsed
+                // (the scanner skips them until they reappear).
+                _showSnack('Ruta no disponible: ${folder.path}');
+              }
+            },
+          ),
+        ),
+        if (!folder.exists)
+          Padding(
+            padding: const EdgeInsets.only(left: 40, bottom: 4),
+            child: Text('ruta no disponible: ${folder.path}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, color: AppColors.danger)),
+          ),
+      ],
+    );
+  }
+
+  /// The "＋ Añadir carpeta" dialog: a plain TextField (the shell-level
+  /// VirtualKeypad attaches to any focused text field automatically).
+  Future<void> _promptAddFolder() async {
+    final controller = TextEditingController();
+    final path = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Añadir carpeta'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '/ruta/absoluta/a/la/carpeta',
+            labelText: 'Ruta absoluta',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Añadir'),
+          ),
+        ],
+      ),
+    );
+    if (path == null || path.isEmpty) return;
+    final err = await ref.read(mediaProvider.notifier).addFolder(path);
+    if (err != null) _showSnack(err);
+  }
+
+  /// Delete confirm: purges the folder's tracks from the index.
+  Future<void> _confirmRemoveFolder(MediaFolder folder) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Quitar carpeta'),
+        content: Text(
+            'Se quitará "${folder.label}" de la biblioteca y sus canciones '
+            'se eliminarán del índice (los archivos no se tocan).'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Quitar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final err = await ref.read(mediaProvider.notifier).removeFolder(folder.id);
+    if (err != null) _showSnack(err);
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   /// Left: album art (the protagonist — the top bar already shows

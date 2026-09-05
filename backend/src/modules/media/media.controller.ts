@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -12,6 +13,8 @@ import type { Response } from 'express';
 import { MediaArtService } from './media-art.service';
 import { MediaService } from './media.service';
 import { MediaLibraryService } from './media-library.service';
+import { MediaFoldersService } from './media-folders.service';
+import { CreateMediaFolderDto } from './dto/create-media-folder.dto';
 
 @Controller('media')
 export class MediaController {
@@ -19,6 +22,7 @@ export class MediaController {
     private readonly media: MediaService,
     private readonly library: MediaLibraryService,
     private readonly art: MediaArtService,
+    private readonly folders: MediaFoldersService,
   ) {}
 
   /** List the library. `?search=` free-text filters title/artist/album/genre. */
@@ -27,7 +31,32 @@ export class MediaController {
     return this.media.list(search);
   }
 
-  /** Rescan MEDIA_DIR (incremental). */
+  /** List configured library folders (with the on-disk `exists` flag). */
+  @Get('folders')
+  listFolders() {
+    return this.folders.list();
+  }
+
+  /**
+   * Add a library folder. The path must be absolute; it does not need to
+   * exist on disk yet (missing folders are shown with a warning client-side
+   * and skipped by the scanner until they reappear).
+   */
+  @Post('folders')
+  addFolder(@Body() dto: CreateMediaFolderDto) {
+    return this.folders.add(dto);
+  }
+
+  /**
+   * Remove a folder. Its tracks are purged from the index (files on disk
+   * are never touched).
+   */
+  @Delete('folders/:id')
+  async removeFolder(@Param('id') id: string) {
+    return this.folders.remove(id);
+  }
+
+  /** Rescan the configured folders (incremental). */
   @Post('library/scan')
   scan() {
     return this.library.scan();

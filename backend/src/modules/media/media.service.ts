@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import * as path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as path from 'node:path';
+import { MediaFoldersService } from './media-folders.service';
 
 /** How a Track row is exposed over the API (BigInt → string, dates → ISO). */
 export interface TrackDto {
@@ -26,16 +26,29 @@ export interface TrackDto {
   relPath: string;
 }
 
+/** A Track DB row (the fields mapTrack needs). */
+interface TrackRow {
+  id: string;
+  title: string;
+  artist: string | null;
+  album: string | null;
+  genre: string | null;
+  durationSec: number;
+  trackNo: number | null;
+  year: number | null;
+  bitrate: number | null;
+  codec: string | null;
+  playCount: number;
+  lastPlayedAt: Date | null;
+  path: string;
+}
+
 @Injectable()
 export class MediaService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
+    private readonly folders: MediaFoldersService,
   ) {}
-
-  private get mediaDir(): string {
-    return this.config.get<string>('MEDIA_DIR') ?? '';
-  }
 
   /**
    * List tracks, optionally filtered by a free-text `search` (title/artist/
@@ -57,7 +70,23 @@ export class MediaService {
       where,
       orderBy: [{ artist: 'asc' }, { album: 'asc' }, { trackNo: 'asc' }, { title: 'asc' }],
     });
-    return items.map((t) => this.mapTrack(t));
+    // Resolve the folder roots once per request — mapTrack strips each
+    // track's absolute prefix against them (longest match wins).
+    const roots = await this.folderRoots();
+    return items.map((t) => this.mapTrack(t, roots));
+  }
+
+  /**
+   * The configured folder paths for relPath computation — resolved once
+   * per list() call. Falls back to MEDIA_DIR when no folder is configured
+   * (legacy installs).
+   */
+  private async folderRoots(): Promise<string[]> {
+    // ?? [] — tolerate a mock/empty store so a folders glitch never breaks
+    // the track list (relPath just loses its prefix).
+    const rows = (await this.prisma.mediaFolder.findMany()) ?? [];
+    if (rows.length > 0) return rows.map((r) => r.path);
+    return this.folders.legacyRoots();
   }
 
   /** Fetch one track's absolute path (for the stream endpoint). */
@@ -101,24 +130,26 @@ export class MediaService {
     }
   }
 
-  private mapTrack(t: {
-    id: string;
-    title: string;
-    artist: string | null;
-    album: string | null;
-    genre: string | null;
-    durationSec: number;
-    trackNo: number | null;
-    year: number | null;
-    bitrate: number | null;
-    codec: string | null;
-    playCount: number;
-    lastPlayedAt: Date | null;
-    path: string;
-  }): TrackDto {
-    const dir = this.mediaDir && t.path.startsWith(this.mediaDir)
-        ? t.path.slice(this.mediaDir.length)
-        : '';
+  private mapTrack(t: TrackRow, roots: string[] = []): TrackDto {
+    // Longest matching root wins, so nested configured folders (e.g.
+    // /music + /music/Jazz) both resolve tracks under /music/Jazz.
+    let dir = '';
+    for (const root of roots) {
+      if (root && t.path.startsWith(root + path.sep) && root.length > dir.length) {
+        dir = root;
+      }
+    }
+    if (dir) {
+      const rel = t.path.slice(dir.length + path.sep.length);
+      return this.dtoWithRelPath(t, rel);
+    }
+    return this.dtoWithRelPath(t, '');
+  }
+
+  private dtoWithRelPath(t: TrackRow, rel: string): TrackDto {
+    // Normalize separators so '' = folder root; unknown tracks (no root
+    // matched) keep '' too — the client shows them at the library root.
+    const relPath = rel.split(path.sep).join('/').replace(/^\//, '');
     return {
       id: t.id,
       title: t.title,
@@ -132,8 +163,7 @@ export class MediaService {
       codec: t.codec,
       playCount: t.playCount,
       lastPlayedAt: t.lastPlayedAt ? t.lastPlayedAt.toISOString() : null,
-      // Normalize separators and strip the leading '/' so '' = MEDIA_DIR root.
-      relPath: dir.split(path.sep).join('/').replace(/^\//, ''),
+      relPath,
     };
   }
 }

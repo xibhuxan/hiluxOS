@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../lib/core/api/api_client.dart';
 import '../lib/features/media/media_provider.dart';
 import '../lib/features/media/media_screen.dart';
+import '../lib/features/media/models/media_folder.dart';
 import '../lib/features/media/models/track.dart';
 import '../lib/features/radio/audio_player_provider.dart';
 import '../lib/features/radio/widgets/spectrum_visualizer.dart';
@@ -21,6 +22,8 @@ class _FakeNotifier extends MediaNotifier {
 
   @override
   Future<void> loadTracks() async {}
+  @override
+  Future<void> loadFolders() async {}
   @override
   Future<void> scan() async {}
   @override
@@ -221,5 +224,70 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(SpectrumVisualizer), findsNothing);
     expect(find.byIcon(Icons.album), findsOneWidget);
+  });
+
+  testWidgets('configured folders render with missing warning and remove confirm',
+      (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final state = MediaState(
+      tracks: [Track(id: 't1', title: 'Root A', durationSec: 5, relPath: 'a.mp3')],
+      folders: const [
+        MediaFolder(id: 'f1', path: '/music', label: 'music', exists: true),
+        MediaFolder(id: 'f2', path: '/usb/musica', label: 'musica', exists: false),
+      ],
+    );
+    await tester.pumpWidget(_wrap(state));
+    await tester.pumpAndSettle();
+
+    // Present folder shows just its label; missing one gets the warning
+    // marker and the explanatory path line.
+    expect(find.text('music'), findsOneWidget);
+    expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+    expect(find.text('musica (no disponible)'), findsOneWidget);
+    expect(find.text('ruta no disponible: /usb/musica'), findsOneWidget);
+
+    // Tapping the missing folder explains instead of filtering.
+    await tester.tap(find.text('musica (no disponible)'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsOneWidget);
+
+    // Remove flow: confirm dialog first, then the delete button.
+    await tester.tap(find.byTooltip('Quitar carpeta').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Quitar carpeta'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Quitar'));
+    await tester.pumpAndSettle();
+    // The fake notifier no-ops removeFolder (no HTTP in tests) — nothing
+    // more to assert beyond the dialog having been shown.
+  });
+
+  testWidgets('add-folder dialog validates and sends the path', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrap(MediaState()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Añadir carpeta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Añadir carpeta'), findsOneWidget);
+    // Scope the finder to the dialog — the library panel's search field is
+    // also a TextField in the tree.
+    await tester.enterText(
+        find.descendant(
+            of: find.byType(AlertDialog), matching: find.byType(TextField)),
+        '/home/xibhu/Música');
+    await tester.tap(find.widgetWithText(FilledButton, 'Añadir'));
+    await tester.pumpAndSettle();
+
+    // The fake notifier no-ops addFolder, so the dialog just closes.
+    expect(find.text('Añadir carpeta'), findsNothing);
   });
 }

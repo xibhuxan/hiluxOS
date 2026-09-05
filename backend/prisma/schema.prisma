@@ -93,6 +93,19 @@ model Track {
   @@map("tracks")
 }
 
+/// A user-configured library folder, scanned by the media library scanner
+/// in addition to (or instead of) the legacy single MEDIA_DIR. Rows whose
+/// path no longer exists on disk are kept — the client shows them with a
+/// "missing" marker and a rescan simply skips them until they reappear.
+model MediaFolder {
+  id        String   @id @default(uuid())
+  /// Absolute filesystem path (unique, normalized with path.resolve).
+  path      String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("media_folders")
+}
+
 /// Append-only log of backend events (useful for diagnostics).
 model EventLog {
   id        BigInt   @id @default(autoincrement())

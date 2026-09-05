@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/utils/config.dart';
 import '../../features/radio/audio_player_provider.dart';
+import 'models/media_folder.dart';
 import 'models/track.dart';
 
 /// Sentinel for `copyWith(error:)`: omitted → keep, null → clear, String → set.
@@ -23,6 +25,11 @@ class MediaState {
   /// the next entry in it (or a random one when shuffle is on).
   final List<Track> queue;
   final bool shuffle;
+  /// Configured library folders (see GET /media/folders). Missing ones
+  /// (exists == false) render with a warning marker in the rail.
+  final List<MediaFolder> folders;
+  /// True while a folder add/remove is in flight (disables the rail buttons).
+  final bool foldersBusy;
 
   MediaState({
     this.tracks = const [],
@@ -35,6 +42,8 @@ class MediaState {
     this.error,
     this.queue = const [],
     this.shuffle = false,
+    this.folders = const [],
+    this.foldersBusy = false,
   });
 
   MediaState copyWith({
@@ -48,6 +57,8 @@ class MediaState {
     Object? error = _unsetError,
     List<Track>? queue,
     bool? shuffle,
+    List<MediaFolder>? folders,
+    bool? foldersBusy,
   }) =>
       MediaState(
         tracks: tracks ?? this.tracks,
@@ -60,6 +71,8 @@ class MediaState {
         error: error == _unsetError ? this.error : error as String?,
         queue: queue ?? this.queue,
         shuffle: shuffle ?? this.shuffle,
+        folders: folders ?? this.folders,
+        foldersBusy: foldersBusy ?? this.foldersBusy,
       );
 }
 
@@ -101,6 +114,62 @@ class MediaNotifier extends StateNotifier<MediaState> {
     } finally {
       state = state.copyWith(scanning: false);
     }
+  }
+
+  /// Load the configured library folders (with the on-disk exists flag).
+  Future<void> loadFolders() async {
+    try {
+      final res = await _api.get('/media/folders');
+      final list = (res.data as List<dynamic>)
+          .map((e) => MediaFolder.fromJson(e as Map<String, dynamic>))
+          .toList();
+      state = state.copyWith(folders: list);
+    } catch (_) {
+      // Folder loading must not break the library — the rail just stays
+      // as-is (folders from the last successful load).
+    }
+  }
+
+  /// Add a library folder (absolute path). On success reloads folders and
+  /// triggers a scan so its files are indexed right away. Returns an error
+  /// message for the UI, or null on success.
+  Future<String?> addFolder(String path) async {
+    state = state.copyWith(foldersBusy: true);
+    try {
+      await _api.post('/media/folders', data: {'path': path});
+      await loadFolders();
+      await scan();
+      return null;
+    } catch (e) {
+      return 'No se pudo añadir la carpeta: ${_errMsg(e)}';
+    } finally {
+      state = state.copyWith(foldersBusy: false);
+    }
+  }
+
+  /// Remove a folder (the backend purges its tracks from the index) and
+  /// reload the library. Returns an error message for the UI, or null.
+  Future<String?> removeFolder(String id) async {
+    state = state.copyWith(foldersBusy: true);
+    try {
+      await _api.delete('/media/folders/$id');
+      await loadFolders();
+      await loadTracks();
+      return null;
+    } catch (e) {
+      return 'No se pudo quitar la carpeta: ${_errMsg(e)}';
+    } finally {
+      state = state.copyWith(foldersBusy: false);
+    }
+  }
+
+  /// Compact, user-friendly message from a Dio error.
+  String _errMsg(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] is String) return data['message'] as String;
+    }
+    return '$e';
   }
 
   /// Start a track, remembering the list it came from so `next()` (and
