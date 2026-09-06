@@ -12,7 +12,7 @@ Fecha: 2026-09-01 · Análisis de viabilidad de las tres ideas propuestas para M
 
 **Diseño (implementado):**
 - Nueva tabla Prisma `MediaFolder` — `{ id uuid, path unique, createdAt }` con migración `20260905171213_add_media_folders`; el `label` se calcula como basename en el DTO (no se persiste).
-- `MediaFoldersService` (backend): `list()` (con `exists: fs.existsSync`), `add(path)` (valida absoluto, normaliza con `path.resolve`, rechaza duplicados), `remove(id)` (purga los tracks del índice cuya ruta cae bajo esa carpeta). Seed inicial: el `MEDIA_DIR` del `.env` se inserta si la tabla está vacía (retro-compatibilidad total).
+- `MediaFoldersService` (backend): `list()` (con `exists: fs.existsSync`), `add(path)` (valida absoluto, normaliza con `path.resolve`, rechaza duplicados), `remove(id)` (purga los tracks del índice cuya ruta cae bajo esa carpeta). Seed inicial: el `MEDIA_DIR` del `.env` se inserta **una sola vez** (guardado con el flag `Setting` `media.folders.seeded`); una vez sembrado (o eliminado por el usuario), no vuelve a insertarse nunca — una tabla vacía significa "el usuario quitó todas las carpetas", no "volver a sembrar". **Fix 2026-09-05**: el seed original re-sembraba `MEDIA_DIR` en cada listado con tabla vacía, resucitando la carpeta demo borrada (y el re-escaneo devolvía sus tracks); además `scanRoots()` hacía fallback a `MEDIA_DIR` con tabla vacía. Ahora el seed es one-shot y `scanRoots()` devuelve `[]` sin throw.
 - API: `GET /media/folders`, `POST /media/folders {path}`, `DELETE /media/folders/:id`.
 - Scanner multi-carpeta: `scan()` itera todas las `MediaFolder` (no solo `MEDIA_DIR`); carpetas que no existen en disco → `walk()` devuelve vacío (sin crash), pero sus filas quedan en la BD para cuando vuelvan.
 - Flutter: modelo `MediaFolder`, provider con `loadFolders/addFolder/removeFolder`, raíl "Carpetas" con botón **＋ Añadir** (diálogo con `TextField` → `VirtualKeypad` sale gratis), tiles con ⚠️ + "no disponible" cuando `exists == false` (tap → SnackBar explicativo), y "Quitar" (delete) con confirmación vía diálogo.
@@ -22,7 +22,7 @@ Fecha: 2026-09-01 · Análisis de viabilidad de las tres ideas propuestas para M
 - Al eliminar una carpeta, sus tracks se purgan del índice (mismos semantics que un scan que los encuentra desaparecidos).
 - Carpetas solapadas (nested) están permitidas — `Track.path` es unique por ruta absoluta, y el upsert es idempotente.
 - Un track bajo dos carpetas solapadas aparece en ambas en el rail (cuenta por carpeta exacta igual que antes, solo que ahora puede pertenecer a más de una).
-- `MEDIA_DIR` sigue existiendo: es la carpeta seed inicial y el fallback del scanner cuando la tabla está vacía.
+- `MEDIA_DIR` sigue existiendo: es la carpeta seed inicial (una sola vez, flag `media.folders.seeded`); ya no es fallback del scanner — tabla vacía → scan no-op, sin tocar `MEDIA_DIR`.
 
 ## Idea 2 — Reproducción de vídeo (vídeoclips, películas, series) ⏸️ APARCADA
 

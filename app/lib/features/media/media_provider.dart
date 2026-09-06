@@ -140,6 +140,11 @@ class MediaNotifier extends StateNotifier<MediaState> {
       await loadFolders();
       await scan();
       return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        return 'Esa carpeta ya está en la biblioteca';
+      }
+      return 'No se pudo añadir la carpeta: ${_errMsg(e)}';
     } catch (e) {
       return 'No se pudo añadir la carpeta: ${_errMsg(e)}';
     } finally {

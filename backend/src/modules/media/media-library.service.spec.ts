@@ -78,9 +78,16 @@ describe('MediaLibraryService', () => {
   });
 
   describe('scan', () => {
-    it('throws when no folder is configured and MEDIA_DIR is unset', async () => {
-      const svc = await buildService(new Error('MEDIA_DIR is not configured'), prisma, cmd);
-      await expect(svc.scan()).rejects.toThrow('MEDIA_DIR is not configured');
+    it('is a clean no-op when no folder is configured (empty roots)', async () => {
+      prisma.track.findMany.mockResolvedValue([]);
+      const svc = await buildService([], prisma, cmd);
+
+      const res = await svc.scan();
+
+      expect(res).toMatchObject({ scanned: 0, added: 0, updated: 0, removed: 0 });
+      expect(cmd.run).not.toHaveBeenCalled();
+      expect(prisma.track.upsert).not.toHaveBeenCalled();
+      expect(prisma.track.delete).not.toHaveBeenCalled();
     });
 
     it('scans every configured folder and de-dupes nested roots', async () => {

@@ -252,6 +252,21 @@ describe('MediaController (e2e)', () => {
       fs.rmSync(real, { recursive: true, force: true });
     });
 
+    it('GET /folders does not resurrect MEDIA_DIR once the seed flag is set (removed folders stay removed)', async () => {
+      // The exact user bug: the seed flag exists, the table is empty (the
+      // user just deleted every folder) — listing must NOT re-insert the
+      // .env MEDIA_DIR ('hiluxOS demo' folder zombie).
+      prisma.setting.findUnique.mockResolvedValue({ key: 'media.folders.seeded', value: '1' });
+      prisma.mediaFolder.findMany.mockResolvedValue([]);
+      prisma.mediaFolder.count.mockResolvedValue(0);
+
+      const res = await agent(app).get('/api/media/folders');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+      expect(prisma.mediaFolder.create).not.toHaveBeenCalled();
+    });
+
     it('POST /folders adds an absolute path and returns the DTO', async () => {
       prisma.mediaFolder.create.mockResolvedValue(folderRow('f1', '/usb/music'));
 

@@ -45,8 +45,9 @@ export interface FolderBrowseDto {
 /**
  * Manages the user-configured library folders (the media rail's roots).
  *
- * - The table is seeded with the legacy MEDIA_DIR on first use, so existing
- *   single-folder installs keep working untouched.
+ * - The table is seeded once with the legacy MEDIA_DIR (guarded by a Setting
+ *   flag): after the user removes that folder it stays removed — the seed
+ *   never resurrects it on an empty table.
  * - A folder does NOT need to exist on disk: missing folders are kept (the
  *   client shows a warning marker) and the scanner skips them until they
  *   reappear — a USB stick being unplugged, say.
@@ -76,17 +77,14 @@ export class MediaFoldersService {
   }
 
   /**
-   * The paths the library scanner should walk. Falls back to the legacy
-   * single MEDIA_DIR when no folder is configured; throws when neither
-   * exists (same error the scanner used to raise).
+   * The paths the library scanner should walk. An empty table means the
+   * user removed every folder on purpose — the scan is simply a no-op
+   * (0 files), it does NOT fall back to MEDIA_DIR.
    */
   async scanRoots(): Promise<string[]> {
     await this.ensureSeeded();
     const rows = await this.prisma.mediaFolder.findMany();
-    if (rows.length > 0) return rows.map((r) => r.path);
-    const dir = this.mediaDir;
-    if (dir) return [dir];
-    throw new Error("MEDIA_DIR is not configured");
+    return rows.map((r) => r.path);
   }
 
   /**
@@ -98,15 +96,34 @@ export class MediaFoldersService {
     return dir ? [dir] : [];
   }
 
-  /** Insert MEDIA_DIR as the initial folder when the table is empty. */
+  /**
+   * Seed MEDIA_DIR as the initial folder exactly once per install, guarded
+   * by the `media.folders.seeded` Setting flag. Once the flag exists — even
+   * if the folder itself was later removed — the seed never runs again (the
+   * user's empty list stays empty; re-adding the path returns 409 normally
+   * via the unique path check, as it should).
+   */
   private async ensureSeeded() {
     const dir = this.mediaDir;
     if (!dir) return;
-    const count = await this.prisma.mediaFolder.count();
-    if (count === 0) {
-      await this.prisma.mediaFolder
-        .create({ data: { path: dir } })
-        .catch(() => undefined);
+    const flag = await this.prisma.setting.findUnique({
+      where: { key: "media.folders.seeded" },
+    });
+    if (flag) return;
+    // First boot of an existing single-folder install: adopt its MEDIA_DIR.
+    try {
+      if ((await this.prisma.mediaFolder.count()) === 0) {
+        await this.prisma.mediaFolder.create({ data: { path: dir } });
+      }
+    } catch {
+      // Concurrent first-boot request already inserted it — fine.
+    }
+    try {
+      await this.prisma.setting.create({
+        data: { key: "media.folders.seeded", value: "1" },
+      });
+    } catch {
+      // Concurrent first-boot requests race on the unique key — first wins.
     }
   }
 

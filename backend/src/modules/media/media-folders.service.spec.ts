@@ -29,6 +29,7 @@ describe('MediaFoldersService', () => {
       delete: jest.Mock;
     };
     track: { deleteMany: jest.Mock };
+    setting: { findUnique: jest.Mock; create: jest.Mock };
   };
   let config: { get: jest.Mock };
 
@@ -42,6 +43,11 @@ describe('MediaFoldersService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn(),
         delete: jest.fn(),
+      },
+      setting: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        // ensureSeeded() awaits this — must resolve, not return undefined.
+        create: jest.fn().mockResolvedValue(undefined),
       },
       track: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
     };
@@ -59,7 +65,7 @@ describe('MediaFoldersService', () => {
   });
 
   describe('list', () => {
-    it('seeds MEDIA_DIR when the table is empty, then lists folders with the exists flag', async () => {
+    it('seeds MEDIA_DIR on first use, then lists folders with the exists flag', async () => {
       // A real dir so the unmocked fs.existsSync reports exists:true.
       const real = fs.mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'hiluxos-ff-'));
       config.get.mockReturnValue(real);
@@ -70,11 +76,27 @@ describe('MediaFoldersService', () => {
       const res = await service.list();
 
       expect(prisma.mediaFolder.create).toHaveBeenCalledWith({ data: { path: real } });
+      // The seed is one-shot: the guard flag is written in the same pass.
+      expect(prisma.setting.create).toHaveBeenCalledWith({
+        data: { key: 'media.folders.seeded', value: '1' },
+      });
       expect(res).toEqual([
         { id: 'seed', path: real, label: require('node:path').basename(real), exists: true },
         { id: 'f2', path: '/missing', label: 'missing', exists: false },
       ]);
       fs.rmSync(real, { recursive: true, force: true });
+    });
+
+    it('does NOT re-seed MEDIA_DIR after the user removed every folder', async () => {
+      // The flag exists (seed ran on first boot) and the table is empty —
+      // the user just deleted the last folder. It must stay deleted.
+      prisma.setting.findUnique.mockResolvedValue({ key: 'media.folders.seeded', value: '1' });
+      prisma.mediaFolder.findMany.mockResolvedValue([]);
+
+      const res = await service.list();
+
+      expect(prisma.mediaFolder.create).not.toHaveBeenCalled();
+      expect(res).toEqual([]);
     });
 
     it('reports exists:false for a path that is a file, not a directory', async () => {
@@ -140,14 +162,26 @@ describe('MediaFoldersService', () => {
       expect(prisma.mediaFolder.create).not.toHaveBeenCalled(); // already seeded
     });
 
-    it('falls back to MEDIA_DIR when no folder is configured', async () => {
+    it('returns [] when the table is empty — no MEDIA_DIR zombie fallback', async () => {
+      // Flag already set (seed ran before) + empty table = the user removed
+      // every folder on purpose. The scan must be a no-op, not a rescan of
+      // the legacy MEDIA_DIR.
+      prisma.setting.findUnique.mockResolvedValue({ key: 'media.folders.seeded', value: '1' });
       prisma.mediaFolder.findMany.mockResolvedValue([]);
-      // count > 0 → no seeding attempt, but no rows either → legacy fallback.
-      prisma.mediaFolder.count.mockResolvedValue(3);
 
       const res = await service.scanRoots();
 
-      expect(res).toEqual(['/music']);
+      expect(res).toEqual([]);
+      expect(prisma.mediaFolder.create).not.toHaveBeenCalled();
+    });
+
+    it('returns [] with no throw when MEDIA_DIR is unset and nothing is seeded', async () => {
+      config.get.mockReturnValue(undefined);
+      prisma.mediaFolder.findMany.mockResolvedValue([]);
+
+      const res = await service.scanRoots();
+
+      expect(res).toEqual([]);
     });
   });
 

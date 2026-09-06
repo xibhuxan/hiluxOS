@@ -39,6 +39,33 @@ class _FakeAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// A Dio adapter that always answers with a fixed HTTP status (e.g. 409) so
+/// error-path tests can exercise Dio's badResponse exception flow.
+class _StatusAdapter implements HttpClientAdapter {
+  _StatusAdapter(this.status, this.body);
+  final int status;
+  final Object body;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelToken,
+  ) async {
+    final bytes = utf8.encode(jsonEncode(body));
+    return ResponseBody(
+      Stream.value(Uint8List.fromList(bytes)),
+      status,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType]
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 /// Minimal AudioPlayer fake implementing only what the media provider uses.
 /// Records every call so tests assert the exact sequence, without touching
 /// a real AudioPlayer (no audio backend exists under `flutter test`). The
@@ -232,6 +259,22 @@ void main() {
       media.toggleShuffle();
       expect(await media.next(), isFalse);
       expect(media.state.current?.id, 't1');
+    });
+
+    test('addFolder maps a 409 to a friendly "already configured" message', () async {
+      // The backend rejects a duplicate path with 409 Conflict; the user must
+      // see a clear message, not the raw HTTP error.
+      final api = ApiClient(Dio()
+        ..httpClientAdapter = _StatusAdapter(409, {
+          'statusCode': 409,
+          'message': 'Folder already configured',
+        }));
+      final media = _TestMediaNotifier(api, _RecordingAudio());
+
+      final err = await media.addFolder('/music/demo');
+
+      expect(err, 'Esa carpeta ya está en la biblioteca');
+      expect(media.state.foldersBusy, isFalse);
     });
   });
 }
