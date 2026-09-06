@@ -14,8 +14,10 @@ import '../lib/features/system_info/health_provider.dart';
 import '../lib/features/system_info/internet_provider.dart';
 import '../lib/features/system_info/quick_panel_provider.dart';
 import '../lib/features/system_info/system_polling_provider.dart';
+import '../lib/features/system_info/power_provider.dart';
 import '../lib/features/tasks/tasks_provider.dart';
 import '../lib/features/tasks/task.dart';
+import '../lib/features/vehicle/vehicle_provider.dart';
 
 /// A no-op WebSocketService for tests (no backend under `flutter test`).
 class _NoopWebSocketService extends WebSocketService {
@@ -48,6 +50,8 @@ void main() {
         audioProvider.overrideWith((ref) => _FakeAudioNotifier()..setState(AudioState())),
         brightnessProvider.overrideWith((ref) => _FakeBrightnessNotifier()..setState(BrightnessState())),
         radioProvider.overrideWith((ref) => _FakeRadioNotifier()..setState(RadioState())),
+        vehicleProvider.overrideWith((ref) => _FakeVehicleNotifier()..setState(VehicleState())),
+        powerProvider.overrideWith((ref) => _FakePowerNotifier()..setState(PowerState())),
       ];
 
   testWidgets('HomeScreen shows backend-disconnected message when health is down',
@@ -204,4 +208,18 @@ class _FakeBrightnessNotifier extends BrightnessNotifier {
 class _FakeRadioNotifier extends RadioNotifier {
   _FakeRadioNotifier() : super(ApiClient(Dio()), AudioPlayerService(), _NoopSpectrumNotifier());
   void setState(RadioState s) => state = s;
+}
+
+class _FakeVehicleNotifier extends VehicleNotifier {
+  _FakeVehicleNotifier() : super(ApiClient(Dio()));
+  @override
+  Future<void> load() async {}
+  void setState(VehicleState s) => state = s;
+}
+
+class _FakePowerNotifier extends PowerNotifier {
+  _FakePowerNotifier() : super(ApiClient(Dio()));
+  @override
+  Future<void> refresh() async {}
+  void setState(PowerState s) => state = s;
 }

@@ -11,6 +11,9 @@ import { EventLogModule } from './modules/event-log/event-log.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UpdatesModule } from './modules/updates/updates.module';
 import { MediaModule } from './modules/media/media.module';
+import { VehicleModule } from './modules/vehicle/vehicle.module';
+import { PowerModule } from './modules/power/power.module';
+import { GpioModule } from './modules/gpio/gpio.module';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { MediaModule } from './modules/media/media.module';
     NotificationsModule,
     UpdatesModule,
     MediaModule,
+    VehicleModule,
+    PowerModule,
+    GpioModule,
   ],
 })
 export class AppModule {}
