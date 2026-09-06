@@ -135,7 +135,7 @@ describe('VehicleController (e2e)', () => {
     });
 
     it('PUT /api/vehicle/alarm arms the anti-theft alarm', async () => {
-      driver.getSnapshot.mockReturnValue({ ...sample, connected: true });
+      driver.getSnapshot.mockReturnValue({ ...sample, connected: true, alarm: { armed: true } });
       const res = await agent(app).put('/api/vehicle/alarm').send({ armed: true });
       expect(res.status).toBe(200);
       expect(driver.setAlarm).toHaveBeenCalledWith(true);
