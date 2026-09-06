@@ -4,9 +4,10 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { SystemMonitorService } from './system-monitor.service';
 import { EventsModule } from '../events/events.module';
+import { PowerModule } from '../power/power.module';
 
 @Module({
-  imports: [EventsModule, ScheduleModule.forRoot()],
+  imports: [EventsModule, ScheduleModule.forRoot(), PowerModule],
   controllers: [NotificationsController],
   providers: [NotificationsService, SystemMonitorService],
   exports: [NotificationsService],

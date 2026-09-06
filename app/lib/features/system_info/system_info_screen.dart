@@ -4,6 +4,7 @@ import '../../core/theme/colors.dart';
 import '../../core/widgets/section_header.dart';
 import 'system_provider.dart';
 import 'event_log_provider.dart';
+import 'power_provider.dart';
 
 class SystemInfoScreen extends ConsumerStatefulWidget {
   const SystemInfoScreen({super.key});
@@ -93,7 +94,26 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
         _row('Free RAM', '${r.freeMemoryMb.toStringAsFixed(0)} MB'),
         _row('Temperature', r.temperature == null ? 'n/a' : '${r.temperature!.toStringAsFixed(1)} °C'),
         _row('Uptime', '${r.uptimeSeconds}s'),
+        _powerRow(ref.watch(powerProvider)),
       ];
+
+  /// Pi power health (undervoltage/throttle) from the Power HAL.
+  Widget _powerRow(PowerState power) {
+    final h = power.health;
+    String value;
+    if (h == null) {
+      value = 'n/a';
+    } else if (!h.available) {
+      value = 'n/a';
+    } else if (h.undervoltage) {
+      value = 'Subtensión';
+    } else if (h.throttled || h.frequencyCapped) {
+      value = 'Limitado (throttle)';
+    } else {
+      value = 'Correcta';
+    }
+    return _row('Energía', value);
+  }
 
   Widget _row(String label, String value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

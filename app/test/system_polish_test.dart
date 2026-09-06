@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../lib/core/api/api_client.dart';
 import '../lib/core/widgets/section_header.dart';
 import '../lib/features/system_info/event_log_provider.dart';
+import '../lib/features/system_info/power_provider.dart';
 import '../lib/features/system_info/system_provider.dart';
 import '../lib/features/system_info/system_info_screen.dart';
 
@@ -21,6 +22,13 @@ class _FakeEventLogNotifier extends EventLogNotifier {
   @override
   Future<void> load({bool append = false}) async {}
   void setState(EventLogState s) => state = s;
+}
+
+class _FakePowerNotifier extends PowerNotifier {
+  _FakePowerNotifier() : super(ApiClient(Dio()));
+  @override
+  Future<void> refresh() async {}
+  void setState(PowerState s) => state = s;
 }
 
 void main() {
@@ -51,6 +59,13 @@ void main() {
           ))),
         eventLogProvider.overrideWith(
             (ref) => _FakeEventLogNotifier()..setState(EventLogState())),
+        powerProvider.overrideWith((ref) => _FakePowerNotifier()
+          ..setState(PowerState(
+              health: PowerHealth(
+                  available: true,
+                  undervoltage: false,
+                  frequencyCapped: false,
+                  throttled: false)))),
       ],
       child: const MaterialApp(home: Scaffold(body: SystemInfoScreen())),
     ));
@@ -60,6 +75,8 @@ void main() {
     expect(find.text('Identity'), findsOneWidget);
     expect(find.text('Resources'), findsOneWidget);
     expect(find.text('Registro de eventos'), findsOneWidget);
+    expect(find.text('Energía'), findsOneWidget);
+    expect(find.text('Correcta'), findsOneWidget);
   });
 
   testWidgets('error view retry button is in Spanish', (tester) async {
@@ -69,6 +86,7 @@ void main() {
           ..setState(SystemState(error: 'boom'))),
         eventLogProvider.overrideWith(
             (ref) => _FakeEventLogNotifier()..setState(EventLogState())),
+        powerProvider.overrideWith((ref) => _FakePowerNotifier()..setState(PowerState())),
       ],
       child: const MaterialApp(home: Scaffold(body: SystemInfoScreen())),
     ));

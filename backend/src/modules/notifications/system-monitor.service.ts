@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PowerService } from '../power/power.service';
 
 /**
  * Monitors system health and sends notifications automatically:
@@ -21,6 +22,7 @@ export class SystemMonitorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly power: PowerService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -29,6 +31,7 @@ export class SystemMonitorService {
     await this.checkTemperature();
     await this.checkDisk();
     await this.checkHighPriorityTasks();
+    await this.checkPower();
   }
 
   /** Manual trigger (for testing). */
@@ -100,6 +103,33 @@ export class SystemMonitorService {
           action: { screen: '/tasks' },
         },
       );
+    }
+  }
+
+  /**
+   * Pi power health (Fase 3 HAL): alert on undervoltage or throttling, the
+   * classic bad-PSU / bad-cable symptoms on a Raspberry Pi. `available: false`
+   * (no vcgencmd — desktops, CI) skips silently.
+   */
+  private async checkPower() {
+    const health = this.power.getHealth();
+    if (!health.available) return;
+
+    if (health.undervoltage) {
+      await this.sendIfCool('power-undervoltage', {
+        type: 'warning',
+        title: 'Subtensión en la Pi',
+        message: 'La alimentación está por debajo del mínimo (red/potencia insuficiente)',
+        action: { screen: '/system' },
+      });
+    }
+    if (health.throttled || health.frequencyCapped) {
+      await this.sendIfCool('power-throttled', {
+        type: 'warning',
+        title: 'CPU limitado (throttle)',
+        message: 'La Pi está reduciendo su frecuencia para protegerse',
+        action: { screen: '/system' },
+      });
     }
   }
 
