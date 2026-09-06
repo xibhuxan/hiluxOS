@@ -106,6 +106,79 @@ describe('MockVehicleDriver', () => {
     expect(driver.getSnapshot().centralLock.locked).toBe(false);
   });
 
+  it('opens and closes doors by id', () => {
+    const { driver } = makeDriver();
+    expect(driver.getSnapshot().doors.map((d) => d.open)).toEqual([false, false, false, false]);
+
+    driver.setDoor(1, true);
+    driver.setDoor(4, true);
+    expect(driver.getSnapshot().doors.map((d) => d.open)).toEqual([true, false, false, true]);
+
+    driver.setDoor(1, false);
+    expect(driver.getSnapshot().doors[0].open).toBe(false);
+  });
+
+  it('arms and disarms the alarm', () => {
+    const { driver } = makeDriver();
+    expect(driver.getSnapshot().alarm.armed).toBe(false);
+
+    driver.setAlarm(true);
+    expect(driver.getSnapshot().alarm.armed).toBe(true);
+
+    driver.setAlarm(false);
+    expect(driver.getSnapshot().alarm.armed).toBe(false);
+  });
+
+  describe('ignition', () => {
+    it('turning it off parks the car: speed/rpm 0, ignition false, battery at rest', () => {
+      const { driver, clock } = makeDriver();
+      const driving = driver.getSnapshot();
+      expect(driving.ignition).toBe(true);
+      expect(driving.engine.speedKmh).toBeGreaterThan(0);
+
+      clock.advanceMs(100);
+      driver.setIgnition(false);
+      const parked = driver.getSnapshot();
+      expect(parked.ignition).toBe(false);
+      expect(parked.engine.speedKmh).toBe(0);
+      expect(parked.engine.rpm).toBe(0);
+      expect(parked.batteryVoltage).toBeLessThan(13); // resting battery, not 14.x alternator
+    });
+
+    it('freezes the odometer and fuel while off, then resumes running', () => {
+      const { driver, clock } = makeDriver();
+      clock.advanceMs(120 * 1000); // 2 minutes driving
+      driver.setIgnition(false);
+      const offA = driver.getSnapshot();
+      clock.advanceMs(600 * 1000); // 10 minutes parked
+      const offB = driver.getSnapshot();
+      expect(offB.engine.odometerKm).toBe(offA.engine.odometerKm); // frozen
+      expect(offB.engine.fuelLevel).toBe(offA.engine.fuelLevel); // frozen
+      expect(offB.engine.coolantTempC!).toBeLessThan(offA.engine.coolantTempC!); // cooling down
+
+      driver.setIgnition(true);
+      clock.advanceMs(5 * 1000);
+      const resumed = driver.getSnapshot();
+      expect(resumed.ignition).toBe(true);
+      expect(resumed.engine.speedKmh).toBeGreaterThan(0);
+      expect(resumed.engine.odometerKm).toBeGreaterThan(offB.engine.odometerKm!); // resumes
+    });
+
+    it('idempotent toggles do not drift the running-time accounting', () => {
+      const { driver, clock } = makeDriver();
+      clock.advanceMs(60 * 1000);
+      driver.setIgnition(true); // already on → no-op
+      clock.advanceMs(60 * 1000);
+      const s = driver.getSnapshot();
+      // 2 minutes total running: the odometer reflects the full 2 minutes of
+      // the same closed-form curve (linear + both sine integrals).
+      const t = 120;
+      const expectedKm =
+        184320 + (55 * t + 1260 * (1 - Math.cos(t / 45)) + 143 * (1 - Math.cos(t / 13))) / 3600;
+      expect(s.engine.odometerKm!).toBeCloseTo(Math.round(expectedKm * 10) / 10, 1);
+    });
+  });
+
   describe('power windows', () => {
     it('animates a window down and freezes it at the fully-open position', () => {
       const { driver, clock } = makeDriver();

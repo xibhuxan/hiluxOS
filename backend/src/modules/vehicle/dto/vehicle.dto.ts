@@ -43,3 +43,21 @@ export class LockDto {
   @IsBoolean()
   locked!: boolean;
 }
+
+/** Body for `PUT /vehicle/ignition`. */
+export class IgnitionDto {
+  @IsBoolean()
+  on!: boolean;
+}
+
+/** Body for `PUT /vehicle/doors/:id`. */
+export class DoorDto {
+  @IsBoolean()
+  open!: boolean;
+}
+
+/** Body for `PUT /vehicle/alarm`. */
+export class AlarmDto {
+  @IsBoolean()
+  armed!: boolean;
+}

@@ -49,6 +49,19 @@ export class ESP32VehicleDriver extends VehicleDriver {
     void locked; // no-op until the ESP32 protocol exists (ADR-0002)
   }
 
+  setIgnition(on: boolean): void {
+    void on; // no-op until the ESP32 protocol exists (ADR-0002)
+  }
+
+  setDoor(id: number, open: boolean): void {
+    void id;
+    void open; // no-op until the ESP32 protocol exists (ADR-0002)
+  }
+
+  setAlarm(armed: boolean): void {
+    void armed; // no-op until the ESP32 protocol exists (ADR-0002)
+  }
+
   windowAction(id: number, action: 'up' | 'down' | 'stop'): void {
     void id;
     void action; // no-op until the ESP32 protocol exists (ADR-0002)

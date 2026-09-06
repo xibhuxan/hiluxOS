@@ -20,7 +20,12 @@ const WINDOW_TRAVEL_PER_SECOND = 0.5;
  * testable (tests inject a fake clock), leak-free, and the values still
  * evolve between polls so the UI feels alive.
  *
- * Actions (lights/signals/lock/windows) mutate in-memory state.
+ * Turning the ignition off freezes the driving telemetry (speed/RPM 0,
+ * odometer and fuel frozen at the shutoff values) and decays the coolant
+ * analytically — still no timers, still a pure function of the clock.
+ *
+ * Actions (lights/signals/lock/ignition/doors/alarm/windows) mutate
+ * in-memory state.
  */
 export class MockVehicleDriver extends VehicleDriver {
   readonly kind = 'mock';
@@ -37,6 +42,15 @@ export class MockVehicleDriver extends VehicleDriver {
   };
   private readonly signals: VehicleTurnSignals = { left: false, right: false, hazard: false };
   private locked = false;
+  private alarmArmed = false;
+
+  /** Ignition (engine electronics). The mock starts "driving" so the Home
+   *  card is alive out of the box — turning it off parks the car. */
+  private engineOn = true;
+  /** Clock reading when the ignition was last toggled. */
+  private lastToggleAt: number;
+  /** Engine-running milliseconds accumulated before `lastToggleAt`. */
+  private runningMsBefore = 0;
 
   private readonly windows: VehicleWindow[] = disconnectedSnapshot().windows.map((w) => ({ ...w }));
   private readonly doors: VehicleDoor[] = disconnectedSnapshot().doors.map((d) => ({ ...d }));
@@ -47,27 +61,60 @@ export class MockVehicleDriver extends VehicleDriver {
     super();
     this.clock = clock;
     this.startedAt = clock();
+    this.lastToggleAt = this.startedAt;
+  }
+
+  /** Seconds the engine has been running (frozen while the ignition is off). */
+  private runningSeconds(): number {
+    const add = this.engineOn ? this.clock() - this.lastToggleAt : 0;
+    return (this.runningMsBefore + add) / 1000;
   }
 
   getSnapshot(): VehicleSnapshot {
-    const t = (this.clock() - this.startedAt) / 1000;
-    const speedKmh = Math.round(55 + 28 * Math.sin(t / 45) + 11 * Math.sin(t / 13));
-    const rpm = Math.round(780 + speedKmh * 26 + 12 * Math.sin(t / 2.1));
-    const coolantTempC = Math.round((22 + 66 * (1 - Math.exp(-t / 180))) * 10) / 10;
-    const batteryVoltage = Math.round((14.1 + 0.2 * Math.sin(t / 60)) * 100) / 100;
-    const fuelLevel = Math.round(Math.max(0.05, 0.65 - (t / 3600) * 0.1) * 100) / 100;
+    const now = this.clock();
+    const t = (now - this.startedAt) / 1000;
+    const tRun = this.runningSeconds();
+
+    let speedKmh = 0;
+    let rpm = 0;
+    let coolantTempC: number;
+    let batteryVoltage: number;
+    let fuelLevel: number;
     // Closed-form integral of the speed curve (55t + ∫28sin(t/45) + ∫11sin(t/13)).
-    const odometerKm =
-      Math.round((184320 + (55 * t + 1260 * (1 - Math.cos(t / 45)) + 143 * (1 - Math.cos(t / 13))) / 3600) * 10) / 10;
+    const odometerAt = (seconds: number) =>
+      184320 + (55 * seconds + 1260 * (1 - Math.cos(seconds / 45)) + 143 * (1 - Math.cos(seconds / 13))) / 3600;
+
+    if (this.engineOn) {
+      speedKmh = Math.round(55 + 28 * Math.sin(tRun / 45) + 11 * Math.sin(tRun / 13));
+      rpm = Math.round(780 + speedKmh * 26 + 12 * Math.sin(tRun / 2.1));
+      coolantTempC = 22 + 66 * (1 - Math.exp(-tRun / 180));
+      batteryVoltage = 14.1 + 0.2 * Math.sin(tRun / 60); // alternator charging
+      fuelLevel = Math.max(0.05, 0.65 - (tRun / 3600) * 0.1);
+    } else {
+      // Parked: battery at rest (~12.4 V), coolant decaying exponentially
+      // from its shutoff value (15 min half-life), everything else frozen.
+      const tOff = (now - this.lastToggleAt) / 1000;
+      const coolantAtOff = 22 + 66 * (1 - Math.exp(-tRun / 180));
+      coolantTempC = 22 + (coolantAtOff - 22) * Math.exp(-tOff / 900);
+      batteryVoltage = 12.4 + 0.05 * Math.sin(t / 60);
+      fuelLevel = Math.max(0.05, 0.65 - (tRun / 3600) * 0.1); // frozen at shutoff
+    }
 
     return {
       connected: true,
-      ignition: true,
-      batteryVoltage,
-      engine: { rpm, speedKmh, coolantTempC, fuelLevel, odometerKm },
+      ignition: this.engineOn,
+      batteryVoltage: Math.round(batteryVoltage * 100) / 100,
+      engine: {
+        rpm,
+        speedKmh,
+        coolantTempC: Math.round(coolantTempC * 10) / 10,
+        fuelLevel: Math.round(fuelLevel * 100) / 100,
+        odometerKm: Math.round(odometerAt(tRun) * 10) / 10,
+      },
       lights: { ...this.lights },
       turnSignals: { ...this.signals },
       centralLock: { locked: this.locked },
+      alarm: { armed: this.alarmArmed },
       windows: this.windows.map((w) => ({ ...this.simulateWindow(w.id) })),
       doors: this.doors.map((d) => ({ ...d })),
     };
@@ -103,6 +150,24 @@ export class MockVehicleDriver extends VehicleDriver {
 
   setCentralLock(locked: boolean): void {
     this.locked = locked;
+  }
+
+  setIgnition(on: boolean): void {
+    if (on === this.engineOn) return; // idempotent: no time accounting drift
+    // Fold the running time so far, then (re)start the segment from now.
+    this.runningMsBefore += this.clock() - this.lastToggleAt;
+    this.lastToggleAt = this.clock();
+    this.engineOn = on;
+  }
+
+  setDoor(id: number, open: boolean): void {
+    const door = this.doors.find((d) => d.id === id);
+    if (!door) return; // unknown ids are rejected by the service layer
+    door.open = open;
+  }
+
+  setAlarm(armed: boolean): void {
+    this.alarmArmed = armed;
   }
 
   windowAction(id: number, action: 'up' | 'down' | 'stop'): void {

@@ -10,6 +10,9 @@ function mockDriver(snapshot: VehicleSnapshot): jest.Mocked<VehicleDriver> {
     setLights: jest.fn(),
     setTurnSignals: jest.fn(),
     setCentralLock: jest.fn(),
+    setIgnition: jest.fn(),
+    setDoor: jest.fn(),
+    setAlarm: jest.fn(),
     windowAction: jest.fn(),
   } as unknown as jest.Mocked<VehicleDriver>;
 }
@@ -106,6 +109,37 @@ describe('VehicleController (e2e)', () => {
       const res = await agent(app).post('/api/vehicle/windows/99/down');
       expect(res.status).toBe(404);
       expect(driver.windowAction).not.toHaveBeenCalledWith(99, 'down');
+    });
+
+    it('PUT /api/vehicle/ignition turns the engine off and also drops the high beams', async () => {
+      driver.getSnapshot.mockReturnValue({ ...sample, connected: true, ignition: true });
+      const res = await agent(app).put('/api/vehicle/ignition').send({ on: false });
+      expect(res.status).toBe(200);
+      expect(driver.setIgnition).toHaveBeenCalledWith(false);
+      expect(driver.setLights).toHaveBeenCalledWith({ high: false });
+      expect(res.body.connected).toBe(true);
+    });
+
+    it('PUT /api/vehicle/doors/2 opens the door and returns the snapshot', async () => {
+      driver.getSnapshot.mockReturnValue({ ...sample, connected: true });
+      const res = await agent(app).put('/api/vehicle/doors/2').send({ open: true });
+      expect(res.status).toBe(200);
+      expect(driver.setDoor).toHaveBeenCalledWith(2, true);
+      expect(res.body.connected).toBe(true);
+    });
+
+    it('PUT /api/vehicle/doors/99 returns 404 for an unknown door', async () => {
+      const res = await agent(app).put('/api/vehicle/doors/99').send({ open: true });
+      expect(res.status).toBe(404);
+      expect(driver.setDoor).not.toHaveBeenCalled();
+    });
+
+    it('PUT /api/vehicle/alarm arms the anti-theft alarm', async () => {
+      driver.getSnapshot.mockReturnValue({ ...sample, connected: true });
+      const res = await agent(app).put('/api/vehicle/alarm').send({ armed: true });
+      expect(res.status).toBe(200);
+      expect(driver.setAlarm).toHaveBeenCalledWith(true);
+      expect(res.body.alarm).toEqual({ armed: true });
     });
   });
 });

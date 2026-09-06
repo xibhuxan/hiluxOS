@@ -25,7 +25,7 @@ export interface VehicleWindow {
   moving: 'up' | 'down' | null;
 }
 
-/** A door (state only — no actuation in this HAL version). */
+/** A door (state + actuation via `PUT /vehicle/doors/:id`). */
 export interface VehicleDoor {
   id: number;
   label: string;
@@ -61,6 +61,8 @@ export interface VehicleSnapshot {
   lights: VehicleLights;
   turnSignals: VehicleTurnSignals;
   centralLock: { locked: boolean };
+  /** Anti-theft alarm (armed = the siren/immobilizer is set). */
+  alarm: { armed: boolean };
   windows: VehicleWindow[];
   doors: VehicleDoor[];
 }
@@ -79,6 +81,7 @@ export function disconnectedSnapshot(): VehicleSnapshot {
     lights: { position: false, low: false, high: false, fog: false, auxiliary: false },
     turnSignals: { left: false, right: false, hazard: false },
     centralLock: { locked: false },
+    alarm: { armed: false },
     windows: [
       { id: 1, label: 'Conductor', position: 0, moving: null },
       { id: 2, label: 'Pasajero', position: 0, moving: null },
@@ -115,6 +118,15 @@ export abstract class VehicleDriver {
 
   /** Engage/release the central locking. */
   abstract setCentralLock(locked: boolean): void;
+
+  /** Turn the ignition (engine electronics) on/off. */
+  abstract setIgnition(on: boolean): void;
+
+  /** Open/close one door by id. */
+  abstract setDoor(id: number, open: boolean): void;
+
+  /** Arm/disarm the anti-theft alarm. */
+  abstract setAlarm(armed: boolean): void;
 
   /** Move (or stop) one window by id. */
   abstract windowAction(id: number, action: 'up' | 'down' | 'stop'): void;
