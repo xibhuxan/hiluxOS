@@ -6,10 +6,10 @@
 
 - **Stack**: NestJS 11 + Prisma 6 + PostgreSQL 17 (backend, host) · Flutter stable (app, host) · PostgreSQL en Docker.
 - **Versión**: `0.1.0` (`VERSION.txt`).
-- **Ramas** (todas sincronizadas con `origin`, HEAD `422620f`):
+- **Ramas** (todas sincronizadas con `origin`, HEAD `98efeee`):
   - `master` → `2c417f7` — rama de release.
   - `dev` → `2c417f7` — integración.
-  - `feature/develop` (activa) → `422620f` — desarrollo en curso.
+  - `feature/develop` (activa) → `98efeee` — desarrollo en curso.
 - Working tree limpio. Todo publicado en el remoto.
 - Recordatorios del entorno: Flutter en `/home/xibhu/flutter/bin/flutter` y Docker/postgres/conexiones a localhost se ejecutan **con sandbox desactivado**.
 
@@ -18,10 +18,10 @@
 - Backend: `tsc --noEmit` → **0 errores**.
 - Flutter: `flutter analyze` → **0 issues** (lints `unnecessary_underscores` corregidos en Fase 0).
 - **Tests**:
-  - Backend unitarios (Jest): **101 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan; **multi-carpeta** vía `MediaFoldersService.scanRoots()`; scan no-op con tabla vacía), `media-art.service` (portadas: cover de carpeta, extracción ffmpeg con cache + marcador negativo), **`media-folders.service`** (seed MEDIA_DIR one-shot con flag `media.folders.seeded` — no re-siembra tras borrar todo, add con validación de absoluta/raíz/duplicado, remove con purga de tracks, exists flag).
-  - Backend e2e (Supertest): **75 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch. El de media incluye art con ffmpeg real (MEDIA_DIR de usar-y-tirar en tmp) y **CRUD de carpetas** (GET/POST/DELETE con exists flag y purga de tracks; **sin resucitar `MEDIA_DIR` con el flag de seed puesto**).
-  - Flutter: **59 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style` (+sentinel), `media_provider` (+cola/shuffle, +409 duplicado → mensaje claro), `media_screen` (+árbol de carpetas, +chevrons de paneles, +selector vista álbum/espectro, **+raíl de carpetas configuradas con aviso de missing y confirm de borrado, +selector de carpeta del sistema**), `shell_title`, **`fullscreen_host`** (overlay tap-to-exit cubre TODO el shell incl. panel de estado; exit por tap en cualquier punto), `widget_test` (providers mockeados con fakes que evitan red/timers).
-  - **Total: 235 tests** (101 unit + 75 e2e + 59 Flutter). Comando e2e: `npm run test:e2e`.
+  - Backend unitarios (Jest): **108 tests** — `health.service`, `settings.service`, `tasks.service`, `radio.service`, `system.service`, `notifications.service`, `event-log.service`, `media-library.service` (mock Prisma + `CommandRunner` fake; `fs` mockeado para brightness y media scan; **multi-carpeta** vía `MediaFoldersService.scanRoots()`; scan no-op con tabla vacía), `media-art.service` (portadas: cover de carpeta, extracción ffmpeg con cache + marcador negativo), **`media-folders.service`** (seed MEDIA_DIR one-shot con flag `media.folders.seeded` — no re-siembra tras borrar todo, add con validación de absoluta/raíz/duplicado, remove con purga de tracks, exists flag, `scanRoots()` devuelve `[]` con tabla vacía sin throw).
+  - Backend e2e (Supertest): **80 tests** — `health`, `tasks`, `settings`, `radio`, `system`, `notifications`, `event-log`, `media` controllers con AppModule completa, mock Prisma + EventsGateway + fetch. El de media incluye art con ffmpeg real (MEDIA_DIR de usar-y-tirar en tmp) y **CRUD de carpetas** (GET/POST/DELETE con exists flag y purga de tracks; **sin resucitar `MEDIA_DIR` con el flag de seed puesto**).
+  - Flutter: **66 tests** — `splash_screen`, `home_screen`, `quick_panel`, `pendientes_card`, `network_settings`, `radio_stop_resume` (+sentinel), `visualizer_style` (+sentinel), `media_provider` (+cola/shuffle, +409 duplicado → mensaje claro), `media_screen` (+árbol de carpetas, +chevrons de paneles, +selector vista álbum/espectro, **+raíl de carpetas configuradas con aviso de missing y confirm de borrado, +selector de carpeta del sistema**), `shell_title`, **`fullscreen_host`** (overlay tap-to-exit cubre TODO el shell incl. panel de estado; exit por tap en cualquier punto), `widget_test` (providers mockeados con fakes que evitan red/timers).
+  - **Total: 254 tests** (108 unit + 80 e2e + 66 Flutter). Comando e2e: `npm run test:e2e`.
 
 ## Qué funciona (verificado E2E en Linux desktop)
 
