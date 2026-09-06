@@ -23,10 +23,21 @@ app/        Flutter frontend (feature-first)
 backend/    NestJS + Prisma backend
 docker/     Docker Compose for PostgreSQL
 scripts/    setup / dev / run-app / validate
-docs/       Architecture Decision Records + functional architecture
-ARCHITECTURE.md             source of truth for the technical design
-docs/ARCHITECTURE-FUNCTIONAL.md   source of truth for the functional/product design
+docs/       all project documentation (see map below)
 ```
+
+### Documentation map
+
+| Document | What it covers |
+|----------|----------------|
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Technical design (source of truth) |
+| [`docs/ARCHITECTURE-FUNCTIONAL.md`](./docs/ARCHITECTURE-FUNCTIONAL.md) | Functional/product design (source of truth) |
+| [`docs/USAGE.md`](./docs/USAGE.md) | Dev workflow, screens guide, full API reference |
+| [`docs/STATUS.md`](./docs/STATUS.md) | Live project status and next steps |
+| [`docs/RELEASES.md`](./docs/RELEASES.md) | Versioning, releases, OTA, deployment |
+| [`docs/adr-*.md`](./docs) | Architecture Decision Records |
+| [`docs/ROADMAP-MEDIA.md`](./docs/ROADMAP-MEDIA.md) | Media roadmap (parked video analysis) |
+| [`docs/NOTES-VEHICLE-UI.md`](./docs/NOTES-VEHICLE-UI.md) | Working notes — next Vehicle UI session |
 
 ## Prerequisites
 
@@ -71,18 +82,16 @@ All configuration comes from environment variables (never hardcoded). See
 
 ## API
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Liveness + DB check |
-| GET | `/api/system/info` | Static system identity |
-| GET | `/api/system/resources` | Live CPU/RAM/temperature |
-| GET | `/api/settings` | All settings as `{ key: value }` |
-| PUT | `/api/settings/:key` | Upsert a setting |
-| GET | `/api/radio/stations/search?q=` | Search Radio Browser |
-| GET | `/api/radio/favorites` | Favorite stations |
-| POST | `/api/radio/favorites` | Add a favorite |
-| GET | `/api/radio/history` | Playback history |
-| WS | `/events` | Real-time event stream |
+The backend serves everything under `/api` (plus a plain WebSocket at `/events`).
+Highlights:
+
+- **System** — health, info, live resources, audio, brightness, Wi-Fi/Bluetooth
+- **Radio & Media** — Radio Browser search, favorites, history, local library
+  with configurable folders, streaming with Range, album art, spectrum
+- **Vehicle / Power / GPIO** — HAL with swappable drivers (`HAL_*` env vars)
+- **Settings, Tasks, Notifications, Event log, OTA updates**
+
+Full endpoint reference: [`docs/USAGE.md`](./docs/USAGE.md#4-referencia-api).
 
 ## Status
 

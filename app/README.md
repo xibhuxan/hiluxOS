@@ -29,14 +29,21 @@ Architecture" for details.
 
 ```
 lib/
-  core/       API client, theme, shared widgets
-  features/   splash, home, radio, system_info, settings, tasks
-  layout/     app shell, navigation, status panel
+  core/       API client, theme, audio player, shared widgets
+  features/   splash, home, radio, media, vehicle, system_info,
+              settings, tasks, notifications, updates
+  layout/     app shell, navigation router, status panel, fullscreen host,
+              on-screen keyboard
   shared/     shared models
 ```
 
-## Analyze
+Navigation is `go_router`-based (`/`, `/radio`, `/media`, `/vehicle`,
+`/system`, `/settings`), launched from the app drawer. Screen-by-screen guide:
+[`../docs/USAGE.md`](../docs/USAGE.md).
+
+## Analyze / test
 
 ```bash
 flutter analyze
+flutter test
 ```
