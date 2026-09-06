@@ -6,6 +6,7 @@ import '../../system_info/controls_provider.dart';
 import '../../system_info/health_provider.dart';
 import '../../system_info/internet_provider.dart';
 import '../../system_info/system_polling_provider.dart';
+import '../../updates/update_provider.dart';
 
 /// System health card: a compact 2-column stat grid — no progress bars, and
 /// each cell scales to fit so it never overflows the card. CPU, RAM, disk,
@@ -25,6 +26,7 @@ class SystemWidget extends ConsumerWidget {
     final ramPct = res?.memoryUsagePercent;
     final diskPct = res?.diskUsedPercent?.toDouble();
     final temp = res?.temperature;
+    final update = ref.watch(updateProvider);
 
     return GlassCard(
       child: Column(
@@ -70,7 +72,8 @@ class SystemWidget extends ConsumerWidget {
                 Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Expanded(child: _Conn(Icons.dns, 'Backend', health.ok ? (health.databaseOk ? 'Online' : 'Sin DB') : 'Offline', health.ok)),
                   _vdiv,
-                  const Expanded(child: SizedBox()),
+                  // Version + update hint — fills the previously-empty cell.
+                  Expanded(child: _VersionStat(update)),
                 ])),
               ],
             ),
@@ -93,6 +96,50 @@ class SystemWidget extends ConsumerWidget {
 
   static const Widget _hdiv = Divider(color: AppColors.surfaceVariant, height: 1, thickness: 1);
   static const Widget _vdiv = VerticalDivider(color: AppColors.surfaceVariant, width: 1, thickness: 1);
+}
+
+/// Version cell: current version, plus a green "0.2.0" hint when an update
+/// is available (color = accent, same as the OTA section).
+class _VersionStat extends StatelessWidget {
+  const _VersionStat(this.update);
+  final UpdateInfo update;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasUpdate = update.updateAvailable && update.latestVersion != null;
+    final color = hasUpdate ? AppColors.accent : AppColors.onBackground;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(hasUpdate ? Icons.system_update : Icons.verified_outlined,
+                    size: 13, color: color),
+                const SizedBox(width: 5),
+                Text('Versión', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              hasUpdate
+                  ? '${update.currentVersion} → ${update.latestVersion}'
+                  : update.currentVersion,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color, height: 1.1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

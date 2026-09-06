@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/colors.dart';
+import '../../core/widgets/section_header.dart';
 import 'system_provider.dart';
 import 'event_log_provider.dart';
-import '../../core/theme/colors.dart';
 
 class SystemInfoScreen extends ConsumerStatefulWidget {
   const SystemInfoScreen({super.key});
@@ -38,11 +39,14 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      if (state.info != null) _infoCard('Identity', _infoRows(state.info!)),
-                      const SizedBox(height: 12),
-                      if (state.resources != null)
+                      if (state.info != null) ...[
+                        _infoCard('Identity', _infoRows(state.info!)),
+                        const SizedBox(height: 12),
+                      ],
+                      if (state.resources != null) ...[
                         _infoCard('Resources', _resourceRows(state.resources!)),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                      ],
                       _logsCard(logState),
                     ],
                   ),
@@ -56,13 +60,24 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(color: AppColors.primary, fontSize: 16)),
+              SectionHeader(icon: _iconFor(title), title: title),
               const SizedBox(height: 12),
               ...rows,
             ],
           ),
         ),
       );
+
+  IconData _iconFor(String title) {
+    switch (title) {
+      case 'Identity':
+        return Icons.badge_outlined;
+      case 'Resources':
+        return Icons.speed;
+      default:
+        return Icons.info_outline;
+    }
+  }
 
   List<Widget> _infoRows(SystemInfo i) => [
         _row('Hostname', i.hostname),
@@ -97,18 +112,16 @@ class _SystemInfoScreenState extends ConsumerState<SystemInfoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Logs',
-                    style: TextStyle(color: AppColors.primary, fontSize: 16)),
-                if (logState.loading)
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
+            SectionHeader(
+              icon: Icons.receipt_long,
+              title: 'Registro de eventos',
+              trailing: logState.loading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
             ),
             const SizedBox(height: 12),
             if (logState.error != null)
@@ -193,7 +206,7 @@ class _ErrorView extends StatelessWidget {
           const SizedBox(height: 16),
           Text(error, textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          FilledButton(onPressed: onRetry, child: const Text('Reintentar')),
         ],
       );
 }

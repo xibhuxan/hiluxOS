@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'settings_provider.dart';
 import '../../core/theme/colors.dart';
+import '../../core/widgets/section_header.dart';
+import 'settings_provider.dart';
 import '../updates/widgets/update_section.dart';
 import 'widgets/wifi_section.dart';
 import 'widgets/bluetooth_section.dart';
@@ -50,6 +51,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: const BluetoothSection(),
+                  ),
+                ),
+                // Backend settings keys (General) — the same key list the
+                // backend exposes via GET /settings.
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: SectionHeader(
+                            icon: Icons.tune, title: 'Ajustes generales'),
+                      ),
+                    ),
                   ),
                 ),
                 SliverPadding(
