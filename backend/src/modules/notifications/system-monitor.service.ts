@@ -37,7 +37,7 @@ export class SystemMonitorService {
   }
 
   private async checkTemperature() {
-    let celsius: number | null = null;
+    let celsius: number;
     try {
       const fs = await import('node:fs');
       const raw = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
@@ -46,7 +46,7 @@ export class SystemMonitorService {
       return; // no thermal zone available (not on a Pi or Linux)
     }
 
-    if (celsius !== null && celsius >= 75) {
+    if (celsius >= 75) {
       await this.sendIfCool(
         'temp-high',
         {

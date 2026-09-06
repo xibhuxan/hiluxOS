@@ -1,0 +1,48 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master, dev, feature/develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  backend:
+    name: Build + Lint + Tests (Jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Generates the Prisma client that src/ imports (`@prisma/client`).
+      # No database needed: unit + e2e tests mock the PrismaService.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build (tsc via nest build)
+        run: npm run build
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Unit tests (Jest, 108)
+        run: npm test
+
+      - name: E2E tests (Supertest, 80)
+        run: npm run test:e2e

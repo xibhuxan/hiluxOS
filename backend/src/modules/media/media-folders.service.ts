@@ -246,7 +246,7 @@ export class MediaFoldersService {
 
   /** DTO mapping: label = basename, exists = live fs check. */
   private mapFolder(r: { id: string; path: string }): MediaFolderDto {
-    let exists = false;
+    let exists: boolean;
     try {
       exists = fs.existsSync(r.path) && fs.statSync(r.path).isDirectory();
     } catch {
