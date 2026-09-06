@@ -80,10 +80,10 @@ class VehicleCard extends ConsumerWidget {
                   snap.locked ? AppColors.accent : AppColors.muted,
                 ),
                 _chip(Icons.meeting_room,
-                    '${snap.doorsClosed}/${snap.doorsTotal} puertas', AppColors.muted),
-                if (snap.windowsTotal > 0)
-                  _chip(Icons.window, '${snap.windowsClosed}/${snap.windowsTotal} ventanillas',
-                      snap.windowsClosed == snap.windowsTotal ? AppColors.muted : AppColors.warning),
+                    '${snap.doorsClosed}/${snap.doors.length} puertas', AppColors.muted),
+                if (snap.windows.isNotEmpty)
+                  _chip(Icons.window, '${snap.windowsClosed}/${snap.windows.length} ventanillas',
+                      snap.windowsClosed == snap.windows.length ? AppColors.muted : AppColors.warning),
               ],
             ),
           ] else ...[

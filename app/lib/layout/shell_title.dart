@@ -15,6 +15,8 @@ String? shellTitleFor(
       return 'Sistema';
     case '/settings':
       return 'Ajustes';
+    case '/vehicle':
+      return 'Vehículo';
     default:
       return null;
   }

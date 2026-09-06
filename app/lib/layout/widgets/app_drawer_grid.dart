@@ -11,11 +11,11 @@ class AppDrawerGrid extends ConsumerWidget {
 
   static const _apps = <_AppDef>[
     _AppDef(path: '/radio', name: 'Radio', icon: Icons.radio, color: AppColors.primary, enabled: true),
+    _AppDef(path: '/vehicle', name: 'Vehículo', icon: Icons.directions_car, color: AppColors.accent, enabled: true),
     _AppDef(path: '/system', name: 'System', icon: Icons.memory, color: AppColors.accent, enabled: true),
     _AppDef(path: '/settings', name: 'Settings', icon: Icons.settings, color: AppColors.purple, enabled: true),
     _AppDef(path: '/media', name: 'Media', icon: Icons.library_music_outlined, color: AppColors.warning, enabled: true),
     _AppDef(path: '/bluetooth', name: 'Bluetooth', icon: Icons.bluetooth, color: AppColors.primary, enabled: false),
-    _AppDef(path: '/obd', name: 'OBD-II', icon: Icons.directions_car_outlined, color: AppColors.accent, enabled: false),
     _AppDef(path: '/camera', name: 'Camera', icon: Icons.videocam_outlined, color: AppColors.danger, enabled: false),
     _AppDef(path: '/voice', name: 'Voice', icon: Icons.mic_outlined, color: AppColors.purple, enabled: false),
   ];

@@ -2,6 +2,33 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 
+/// One power window, as served by the Vehicle HAL. `position` is 0 (closed)…
+/// 1 (fully open); `moving` is null when stopped.
+class VehicleWindowInfo {
+  final int id;
+  final String label;
+  final double position;
+  final String? moving;
+
+  const VehicleWindowInfo({
+    required this.id,
+    required this.label,
+    required this.position,
+    this.moving,
+  });
+
+  bool get isClosed => position <= 0.01;
+}
+
+/// One door (state + actuation).
+class VehicleDoorInfo {
+  final int id;
+  final String label;
+  final bool open;
+
+  const VehicleDoorInfo({required this.id, required this.label, required this.open});
+}
+
 /// Snapshot served by `GET /vehicle` (backend Vehicle HAL). The app never
 /// knows whether the data is simulated or real (Mock First).
 class VehicleSnapshot {
@@ -13,13 +40,21 @@ class VehicleSnapshot {
   final double? coolantTempC;
   final double? fuelLevel;
   final double? odometerKm;
+  final bool positionLights;
   final bool lowBeams;
+  final bool highBeams;
+  final bool fogLights;
+  final bool auxiliaryLights;
+  final bool turnLeft;
+  final bool turnRight;
   final bool hazard;
   final bool locked;
-  final int windowsTotal;
-  final int windowsClosed;
-  final int doorsTotal;
-  final int doorsClosed;
+  final bool alarmArmed;
+  final List<VehicleWindowInfo> windows;
+  final List<VehicleDoorInfo> doors;
+
+  int get windowsClosed => windows.where((w) => w.isClosed).length;
+  int get doorsClosed => doors.where((d) => !d.open).length;
 
   VehicleSnapshot({
     required this.connected,
@@ -30,13 +65,18 @@ class VehicleSnapshot {
     required this.coolantTempC,
     required this.fuelLevel,
     required this.odometerKm,
+    required this.positionLights,
     required this.lowBeams,
+    required this.highBeams,
+    required this.fogLights,
+    required this.auxiliaryLights,
+    required this.turnLeft,
+    required this.turnRight,
     required this.hazard,
     required this.locked,
-    required this.windowsTotal,
-    required this.windowsClosed,
-    required this.doorsTotal,
-    required this.doorsClosed,
+    required this.alarmArmed,
+    required this.windows,
+    required this.doors,
   });
 
   factory VehicleSnapshot.fromJson(Map<String, dynamic> j) {
@@ -44,6 +84,7 @@ class VehicleSnapshot {
     final lights = (j['lights'] as Map<String, dynamic>?) ?? const {};
     final signals = (j['turnSignals'] as Map<String, dynamic>?) ?? const {};
     final lock = (j['centralLock'] as Map<String, dynamic>?) ?? const {};
+    final alarm = (j['alarm'] as Map<String, dynamic>?) ?? const {};
     final windows = (j['windows'] as List<dynamic>?) ?? const [];
     final doors = (j['doors'] as List<dynamic>?) ?? const [];
     return VehicleSnapshot(
@@ -55,16 +96,31 @@ class VehicleSnapshot {
       coolantTempC: (engine['coolantTempC'] as num?)?.toDouble(),
       fuelLevel: (engine['fuelLevel'] as num?)?.toDouble(),
       odometerKm: (engine['odometerKm'] as num?)?.toDouble(),
+      positionLights: lights['position'] as bool? ?? false,
       lowBeams: lights['low'] as bool? ?? false,
+      highBeams: lights['high'] as bool? ?? false,
+      fogLights: lights['fog'] as bool? ?? false,
+      auxiliaryLights: lights['auxiliary'] as bool? ?? false,
+      turnLeft: signals['left'] as bool? ?? false,
+      turnRight: signals['right'] as bool? ?? false,
       hazard: signals['hazard'] as bool? ?? false,
       locked: lock['locked'] as bool? ?? false,
-      windowsTotal: windows.length,
-      windowsClosed: windows.where((w) {
-        final pos = (w as Map<String, dynamic>)['position'];
-        return pos is num && pos.toDouble() <= 0.01;
-      }).length,
-      doorsTotal: doors.length,
-      doorsClosed: doors.where((d) => !((d as Map<String, dynamic>)['open'] as bool? ?? false)).length,
+      alarmArmed: alarm['armed'] as bool? ?? false,
+      windows: windows
+          .map((w) => VehicleWindowInfo(
+                id: (w as Map<String, dynamic>)['id'] as int,
+                label: (w)['label'] as String? ?? '',
+                position: ((w)['position'] as num?)?.toDouble() ?? 0,
+                moving: (w)['moving'] as String?,
+              ))
+          .toList(),
+      doors: doors
+          .map((d) => VehicleDoorInfo(
+                id: (d as Map<String, dynamic>)['id'] as int,
+                label: (d)['label'] as String? ?? '',
+                open: (d)['open'] as bool? ?? false,
+              ))
+          .toList(),
     );
   }
 }
@@ -129,10 +185,25 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
     if (body.isEmpty) return;
     try {
       final res = await _api.put('/vehicle/lights', data: body);
-      state = VehicleState(
-        snapshot: VehicleSnapshot.fromJson(res.data as Map<String, dynamic>),
-        loading: false,
-      );
+      _applySnapshotResponse(res);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// Sets a turn signal. Real-car behaviour: left/right/hazard are mutually
+  /// exclusive — sending `left: true` clears right and hazard (the mock driver
+  /// resolves this; the UI offers one-shot toggle buttons, not switches).
+  Future<void> setSignals({bool? left, bool? right, bool? hazard}) async {
+    final body = <String, dynamic>{
+      'left': ?left,
+      'right': ?right,
+      'hazard': ?hazard,
+    };
+    if (body.isEmpty) return;
+    try {
+      final res = await _api.put('/vehicle/signals', data: body);
+      _applySnapshotResponse(res);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -141,10 +212,34 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
   Future<void> setLock(bool locked) async {
     try {
       final res = await _api.put('/vehicle/lock', data: {'locked': locked});
-      state = VehicleState(
-        snapshot: VehicleSnapshot.fromJson(res.data as Map<String, dynamic>),
-        loading: false,
-      );
+      _applySnapshotResponse(res);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> setIgnition(bool on) async {
+    try {
+      final res = await _api.put('/vehicle/ignition', data: {'on': on});
+      _applySnapshotResponse(res);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> setDoor(int id, bool open) async {
+    try {
+      final res = await _api.put('/vehicle/doors/$id', data: {'open': open});
+      _applySnapshotResponse(res);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> setAlarm(bool armed) async {
+    try {
+      final res = await _api.put('/vehicle/alarm', data: {'armed': armed});
+      _applySnapshotResponse(res);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -153,13 +248,19 @@ class VehicleNotifier extends StateNotifier<VehicleState> {
   Future<void> windowAction(int id, String action) async {
     try {
       final res = await _api.post('/vehicle/windows/$id/$action');
-      state = VehicleState(
-        snapshot: VehicleSnapshot.fromJson(res.data as Map<String, dynamic>),
-        loading: false,
-      );
+      _applySnapshotResponse(res);
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
+  }
+
+  /// Shared success path for every action: the backend returns the full
+  /// snapshot after applying the change, so the UI state stays consistent.
+  void _applySnapshotResponse(dynamic res) {
+    state = VehicleState(
+      snapshot: VehicleSnapshot.fromJson(res.data as Map<String, dynamic>),
+      loading: false,
+    );
   }
 
   @override

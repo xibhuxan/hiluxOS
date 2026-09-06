@@ -24,10 +24,10 @@ VehicleSnapshot _snapshot({
   bool lowBeams = true,
   bool hazard = false,
   bool locked = true,
-  int windowsClosed = 4,
-  int windowsTotal = 4,
-  int doorsClosed = 4,
-  int doorsTotal = 4,
+  int closedWindows = 4,
+  int totalWindows = 4,
+  int closedDoors = 4,
+  int totalDoors = 4,
 }) =>
     VehicleSnapshot(
       connected: connected,
@@ -38,13 +38,28 @@ VehicleSnapshot _snapshot({
       coolantTempC: 84.2,
       fuelLevel: 0.65,
       odometerKm: 184321.5,
+      positionLights: false,
       lowBeams: lowBeams,
+      highBeams: false,
+      fogLights: false,
+      auxiliaryLights: false,
+      turnLeft: false,
+      turnRight: false,
       hazard: hazard,
       locked: locked,
-      windowsTotal: windowsTotal,
-      windowsClosed: windowsClosed,
-      doorsTotal: doorsTotal,
-      doorsClosed: doorsClosed,
+      alarmArmed: false,
+      windows: List.generate(
+        totalWindows,
+        (i) => VehicleWindowInfo(
+          id: i + 1,
+          label: 'V$i',
+          position: i < closedWindows ? 0 : 1,
+        ),
+      ),
+      doors: List.generate(
+        totalDoors,
+        (i) => VehicleDoorInfo(id: i + 1, label: 'D$i', open: i >= closedDoors),
+      ),
     );
 
 void main() {
@@ -53,7 +68,7 @@ void main() {
       vehicleProvider.overrideWith((ref) => _FakeVehicleNotifier()
         ..setState(VehicleState(
             snapshot: _snapshot(
-                lowBeams: true, hazard: true, locked: true, windowsClosed: 3, windowsTotal: 4)))),
+                lowBeams: true, hazard: true, locked: true, closedWindows: 3, totalWindows: 4)))),
     ]);
 
     await tester.pumpWidget(UncontrolledProviderScope(

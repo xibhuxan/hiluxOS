@@ -82,10 +82,11 @@ void main() {
       expect(s.lowBeams, isTrue);
       expect(s.hazard, isTrue);
       expect(s.locked, isTrue);
-      expect(s.windowsTotal, 4);
+      expect(s.windows.length, 4);
       expect(s.windowsClosed, 2); // ids 1 and 3 (position <= 0.01)
-      expect(s.doorsTotal, 4);
+      expect(s.doors.length, 4);
       expect(s.doorsClosed, 4);
+      expect(s.turnRight, isFalse); // full model now carries per-signal state
     });
 
     test('degrades gracefully on a disconnected snapshot', () {
@@ -103,13 +104,14 @@ void main() {
         'lights': {'position': false, 'low': false, 'high': false, 'fog': false, 'auxiliary': false},
         'turnSignals': {'left': false, 'right': false, 'hazard': false},
         'centralLock': {'locked': false},
+        'alarm': {'armed': false},
         'windows': <dynamic>[],
         'doors': <dynamic>[],
       };
       final s = VehicleSnapshot.fromJson(Map<String, dynamic>.from(empty));
       expect(s.connected, isFalse);
       expect(s.speedKmh, isNull);
-      expect(s.windowsTotal, 0);
+      expect(s.windows, isEmpty);
       expect(s.doorsClosed, 0);
     });
   });
@@ -140,6 +142,59 @@ void main() {
       await settle();
       await notifier.setLock(true);
       expect(requests.any((r) => r.path == '/vehicle/lock'), isTrue);
+      notifier.dispose();
+    });
+
+    test('setIgnition() PUTs /vehicle/ignition', () async {
+      final requests = <RequestOptions>[];
+      final api = _api((options) {
+        requests.add(options);
+        return snapshotJson;
+      });
+      final notifier = VehicleNotifier(api);
+      await settle();
+      await notifier.setIgnition(false);
+      expect(requests.any((r) => r.path == '/vehicle/ignition'), isTrue);
+      notifier.dispose();
+    });
+
+    test('setDoor() PUTs /vehicle/doors/:id', () async {
+      final requests = <RequestOptions>[];
+      final api = _api((options) {
+        requests.add(options);
+        return snapshotJson;
+      });
+      final notifier = VehicleNotifier(api);
+      await settle();
+      await notifier.setDoor(2, true);
+      expect(requests.any((r) => r.path == '/vehicle/doors/2'), isTrue);
+      notifier.dispose();
+    });
+
+    test('setAlarm() PUTs /vehicle/alarm', () async {
+      final requests = <RequestOptions>[];
+      final api = _api((options) {
+        requests.add(options);
+        return snapshotJson;
+      });
+      final notifier = VehicleNotifier(api);
+      await settle();
+      await notifier.setAlarm(true);
+      expect(requests.any((r) => r.path == '/vehicle/alarm'), isTrue);
+      notifier.dispose();
+    });
+
+    test('setSignals() PUTs /vehicle/signals with one key', () async {
+      RequestOptions? signalsRequest;
+      final api = _api((options) {
+        if (options.path == '/vehicle/signals') signalsRequest = options;
+        return snapshotJson;
+      });
+      final notifier = VehicleNotifier(api);
+      await settle();
+      await notifier.setSignals(left: true);
+      expect(signalsRequest, isNotNull);
+      expect(signalsRequest!.data, {'left': true});
       notifier.dispose();
     });
 

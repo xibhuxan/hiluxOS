@@ -7,6 +7,7 @@ import '../features/radio/radio_screen.dart';
 import '../features/media/media_screen.dart';
 import '../features/system_info/system_info_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/vehicle/vehicle_screen.dart';
 import 'app_shell.dart';
 
 /// Fade + slight slide-up transition used by the shell routes.
@@ -68,6 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const SettingsScreen()),
+          ),
+          GoRoute(
+            path: '/vehicle',
+            pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const VehicleScreen()),
           ),
         ],
       ),
