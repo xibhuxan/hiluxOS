@@ -44,6 +44,7 @@ class EqualizerState {
   final String? activePreset;
   final List<EqPreset> presets;
   final bool available;
+  final bool backendReachable;
   final double minGain;
   final double maxGain;
   final bool loading;
@@ -56,6 +57,7 @@ class EqualizerState {
     this.activePreset,
     this.presets = const [],
     this.available = true,
+    this.backendReachable = true,
     this.minGain = -12,
     this.maxGain = 12,
     this.loading = true,
@@ -71,6 +73,7 @@ class EqualizerState {
     String? Function()? activePreset,
     List<EqPreset>? presets,
     bool? available,
+    bool? backendReachable,
     double? minGain,
     double? maxGain,
     bool? loading,
@@ -83,6 +86,7 @@ class EqualizerState {
         activePreset: activePreset != null ? activePreset() : this.activePreset,
         presets: presets ?? this.presets,
         available: available ?? this.available,
+        backendReachable: backendReachable ?? this.backendReachable,
         minGain: minGain ?? this.minGain,
         maxGain: maxGain ?? this.maxGain,
         loading: loading ?? this.loading,
@@ -110,7 +114,11 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
         presets.data as List<dynamic>,
       );
     } catch (_) {
-      state = state.copyWith(loading: false, available: false);
+      // The request itself failed → the backend is unreachable, which is a
+      // different problem from "audio server not available" (capabilities
+      // responding available:false). Distinguish them so the UI can say
+      // "sin conexión" instead of the misleading "audio no disponible".
+      state = state.copyWith(loading: false, backendReachable: false);
     }
   }
 
@@ -129,6 +137,7 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
         activePreset: d['activePreset'] as String?,
         presets: presets.map((e) => EqPreset.fromJson(e as Map<String, dynamic>)).toList(),
         available: cap['available'] as bool? ?? true,
+        backendReachable: true,
         minGain: (cap['minGain'] as num?)?.toDouble() ?? -12,
         maxGain: (cap['maxGain'] as num?)?.toDouble() ?? 12,
         loading: false,

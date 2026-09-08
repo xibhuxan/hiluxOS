@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: { key: string; value: string }[] = [
   { key: 'theme', value: 'dark' },
   { key: 'wifi_enabled', value: 'true' },
   { key: 'bluetooth_enabled', value: 'false' },
+  { key: 'weather.location', value: 'Madrid' },
 ];
 
 const DEFAULT_TASKS: { title: string; kind: string; value: string; priority: number }[] = [

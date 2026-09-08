@@ -21,8 +21,19 @@ class EqualizerScreen extends ConsumerWidget {
     if (state.loading) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (!state.backendReachable) {
+      return _offline(
+        icon: Icons.cloud_off_outlined,
+        title: 'Backend no disponible',
+        subtitle: 'No se pudo conectar con el servidor',
+      );
+    }
     if (!state.available) {
-      return _unavailable();
+      return _offline(
+        icon: Icons.volume_off_outlined,
+        title: 'Audio no disponible',
+        subtitle: 'No se detectó un servidor de audio (PipeWire)',
+      );
     }
 
     return Column(
@@ -38,20 +49,35 @@ class EqualizerScreen extends ConsumerWidget {
     );
   }
 
-  Widget _unavailable() {
+  Widget _offline({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.volume_off_outlined,
-              size: 42, color: AppColors.muted.withValues(alpha: 0.7)),
+          Icon(icon, size: 42, color: AppColors.muted.withValues(alpha: 0.7)),
           const SizedBox(height: 10),
-          const Text('Audio no disponible',
-              style: TextStyle(
+          Text(title,
+              style: const TextStyle(
                   fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.muted)),
           const SizedBox(height: 2),
-          const Text('No se detectó un servidor de audio (PipeWire)',
-              style: TextStyle(color: AppColors.muted, fontSize: 13)),
+          Text(subtitle,
+              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          const SizedBox(height: 14),
+          Consumer(
+            builder: (context, ref, _) => OutlinedButton.icon(
+              onPressed: () => ref.read(equalizerProvider.notifier).refresh(),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Reintentar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
         ],
       ),
     );

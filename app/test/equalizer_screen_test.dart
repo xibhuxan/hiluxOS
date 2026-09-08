@@ -11,7 +11,10 @@ import '../lib/features/equalizer/equalizer_screen.dart';
 class _FakeEqualizerNotifier extends EqualizerNotifier {
   _FakeEqualizerNotifier() : super(ApiClient(Dio()));
   @override
-  Future<void> refresh() async {}
+  Future<void> refresh() async {
+    refreshCalled = true;
+  }
+  bool refreshCalled = false;
   void setState(EqualizerState s) => state = s;
 
   // Capture actions for assertions.
@@ -165,6 +168,28 @@ void main() {
     await pump(tester, container);
 
     expect(find.text('Audio no disponible'), findsOneWidget);
+
+    container.dispose();
+  });
+
+  testWidgets('shows the offline state and retry when the backend is down',
+      (tester) async {
+    bigViewport(tester);
+    final fake = _FakeEqualizerNotifier();
+    final container = containerWith(
+      const EqualizerState(loading: false, backendReachable: false),
+      fake,
+    );
+    await pump(tester, container);
+
+    // Distinct message from the "audio unavailable" one.
+    expect(find.text('Backend no disponible'), findsOneWidget);
+    expect(find.text('Audio no disponible'), findsNothing);
+
+    // The retry button re-triggers a refresh.
+    await tester.tap(find.text('Reintentar'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(fake.refreshCalled, true);
 
     container.dispose();
   });

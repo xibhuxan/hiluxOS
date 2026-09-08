@@ -19,6 +19,12 @@ String? shellTitleFor(
       return 'Vehículo';
     case '/equalizer':
       return 'Ecualizador';
+    case '/btmedia':
+      return 'Bluetooth';
+    case '/weather':
+      return 'Clima';
+    case '/maps':
+      return 'Navegación';
     default:
       return null;
   }

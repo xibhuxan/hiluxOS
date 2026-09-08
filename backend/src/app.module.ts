@@ -15,6 +15,9 @@ import { VehicleModule } from './modules/vehicle/vehicle.module';
 import { PowerModule } from './modules/power/power.module';
 import { GpioModule } from './modules/gpio/gpio.module';
 import { EqualizerModule } from './modules/equalizer/equalizer.module';
+import { BtMediaModule } from './modules/btmedia/btmedia.module';
+import { WeatherModule } from './modules/weather/weather.module';
+import { MapsModule } from './modules/maps/maps.module';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { EqualizerModule } from './modules/equalizer/equalizer.module';
     PowerModule,
     GpioModule,
     EqualizerModule,
+    BtMediaModule,
+    WeatherModule,
+    MapsModule,
   ],
 })
 export class AppModule {}
