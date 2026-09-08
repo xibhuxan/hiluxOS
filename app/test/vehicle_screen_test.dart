@@ -15,7 +15,7 @@ class _FakeVehicleNotifier extends VehicleNotifier {
   void setState(VehicleState s) => state = s;
 }
 
-VehicleSnapshot _snapshot({bool ignition = true, bool alarmArmed = false}) => VehicleSnapshot(
+VehicleSnapshot _snapshot({bool ignition = true, bool alarmArmed = false, String? moving = 'down'}) => VehicleSnapshot(
       connected: true,
       ignition: ignition,
       batteryVoltage: 14.1,
@@ -34,9 +34,9 @@ VehicleSnapshot _snapshot({bool ignition = true, bool alarmArmed = false}) => Ve
       hazard: false,
       locked: true,
       alarmArmed: alarmArmed,
-      windows: const [
+      windows: [
         VehicleWindowInfo(id: 1, label: 'Conductor', position: 0),
-        VehicleWindowInfo(id: 2, label: 'Pasajero', position: 0.5, moving: 'down'),
+        VehicleWindowInfo(id: 2, label: 'Pasajero', position: 0.5, moving: moving),
         VehicleWindowInfo(id: 3, label: 'Trasera izq.', position: 0),
         VehicleWindowInfo(id: 4, label: 'Trasera der.', position: 1),
       ],
@@ -68,7 +68,9 @@ void main() {
       container: container,
       child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
     ));
-    await tester.pumpAndSettle();
+    // NOTE: no pumpAndSettle — window 2 of the snapshot is `moving: 'down'`,
+    // so its interpolation Ticker runs forever (by design). Bounded pumps.
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('Control'), findsOneWidget);
     expect(find.text('Luces'), findsOneWidget);
@@ -79,7 +81,6 @@ void main() {
     expect(find.text('Motor encendido'), findsOneWidget);
 
     container.dispose();
-    await tester.pumpAndSettle();
   });
 
   testWidgets('Dashboard mode shows gauges, metrics and tell-tales', (tester) async {
@@ -89,7 +90,7 @@ void main() {
       container: container,
       child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
     ));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.text('Dashboard'));
     // NOTE: no pumpAndSettle here — the cluster tell-tales blink forever
@@ -115,7 +116,7 @@ void main() {
       container: container,
       child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
     ));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // Control → Dashboard.
     await tester.tap(find.text('Dashboard'));
@@ -129,10 +130,42 @@ void main() {
     expect(find.text('Luces'), findsOneWidget);
     expect(find.text('Ventanillas'), findsOneWidget);
 
+    // Stop the moving window (a final poll with moving == null parks its
+    // interpolation Ticker) so the post-dispose pump doesn't rebuild it
+    // against the disposed container.
+    (container.read(vehicleProvider.notifier) as _FakeVehicleNotifier)
+        .setState(VehicleState(snapshot: _snapshot(moving: null)));
+    await tester.pump(const Duration(milliseconds: 400));
+
     container.dispose();
     // Bounded pump to flush the dashboard tell-tale timers left over from the
     // Dashboard visit (they blink forever; never pumpAndSettle).
     await tester.pump(const Duration(milliseconds: 400));
+  });
+
+  testWidgets('moving window interpolates its bar live between polls', (tester) async {
+    bigViewport(tester);
+    // Window 2 starts at 0.5 moving down (full travel = 2 s, 0.5/s).
+    final container = containerWith(VehicleState(snapshot: _snapshot()));
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    double barWidth() => tester
+        .widget<FractionallySizedBox>(find.byKey(const Key('window-bar-2')))
+        .widthFactor!;
+    // 400 ms have already ticked: 0.5 + 0.4s * 0.5/s = 0.7.
+    expect(barWidth(), moreOrLessEquals(0.7, epsilon: 0.02));
+
+    // After 1 s more of fake time the bar must have advanced another ~0.5
+    // towards fully open (no poll happened — the movement is the local
+    // interpolation, clamped at 1.0).
+    await tester.pump(const Duration(seconds: 1));
+    expect(barWidth(), 1.0);
+
+    container.dispose();
   });
 
   testWidgets('turn signal buttons send one key at a time', (tester) async {
@@ -143,7 +176,7 @@ void main() {
       container: container,
       child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
     ));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
 
     // Fakes can't hit the network; assert the UI exposes the three one-shot
     // buttons (the API mapping is covered by vehicle_provider_test).
@@ -152,6 +185,5 @@ void main() {
     expect(find.text('Dcha.'), findsOneWidget);
 
     container.dispose();
-    await tester.pumpAndSettle();
   });
 }
