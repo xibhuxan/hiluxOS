@@ -111,9 +111,14 @@ class _ModeToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget segment(String label, IconData icon, bool active) => Expanded(
-          child: InkWell(
-            onTap: () => onChanged(!active),
+    // Each segment emits ITS OWN value (Control => false, Dashboard => true).
+    // Emitting `!active` made the inactive segment re-emit the current mode,
+    // so from Dashboard tapping "Control" kept you in Dashboard.
+    Widget segment(String label, IconData icon, bool value) {
+      final active = dashboard == value;
+      return Expanded(
+        child: InkWell(
+          onTap: () => onChanged(value),
             borderRadius: BorderRadius.circular(10),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -143,6 +148,7 @@ class _ModeToggle extends StatelessWidget {
             ),
           ),
         );
+    }
 
     return Container(
       padding: const EdgeInsets.all(3),
@@ -152,9 +158,9 @@ class _ModeToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          segment('Control', Icons.tune, !dashboard),
+          segment('Control', Icons.tune, false),
           const SizedBox(width: 3),
-          segment('Dashboard', Icons.dashboard_outlined, dashboard),
+          segment('Dashboard', Icons.dashboard_outlined, true),
         ],
       ),
     );

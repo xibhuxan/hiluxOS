@@ -108,6 +108,33 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('mode toggle switches both ways (Control ⇄ Dashboard)', (tester) async {
+    bigViewport(tester);
+    final container = containerWith(VehicleState(snapshot: _snapshot()));
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: VehicleScreen())),
+    ));
+    await tester.pumpAndSettle();
+
+    // Control → Dashboard.
+    await tester.tap(find.text('Dashboard'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('km/h'), findsOneWidget);
+
+    // Dashboard → Control (regression: the inactive segment used to re-emit
+    // the current mode, so this tap was a no-op and you were stuck).
+    await tester.tap(find.text('Control'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Luces'), findsOneWidget);
+    expect(find.text('Ventanillas'), findsOneWidget);
+
+    container.dispose();
+    // Bounded pump to flush the dashboard tell-tale timers left over from the
+    // Dashboard visit (they blink forever; never pumpAndSettle).
+    await tester.pump(const Duration(milliseconds: 400));
+  });
+
   testWidgets('turn signal buttons send one key at a time', (tester) async {
     bigViewport(tester);
     final fake = _FakeVehicleNotifier()..setState(VehicleState(snapshot: _snapshot()));
