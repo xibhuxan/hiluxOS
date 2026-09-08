@@ -75,7 +75,9 @@
   `GET/DELETE /history`) + eventos WS `voice`/`voice_status`. Pantalla
   `/voice` (tile "Asistente") con push-to-talk animado, historial de
   conversación, entrada de texto y reproducción TTS vía audioplayers.
-  ⏳ Pendiente hardware: micro + modelo Vosk real y wake-word en la Pi.
+  ⏳ Pendiente hardware: micro + modelo Vosk real (driver `vosk`, streaming) y
+  wake-word en la Pi. En dev el botón usa el driver `mock` (WAV sintetizado;
+  no hay micro real). El cerebro LLM (Ollama) ya está integrado — ver abajo.
 - ✅ **Acciones reales del asistente** (2026-09-08) — los intents ya **ejecutan**
   sobre los módulos: `volume` ajusta el volumen maestro real (wpctl/amixer),
   `weather`/`weather_forecast` responden con Open-Meteo en vivo, `media_control`
@@ -84,8 +86,21 @@
   WS `voice_action` (playback local en Flutter). Desambiguación por voz con
   chips de emisoras en la pantalla `/voice` ("¿Cuál quieres?"). Respuesta
   hablada = estado real ("Sintonizando ROCK FM", "Volumen al 40 por ciento").
-- ⬜ **Comandos de voz del vehículo** — "abre las ventanillas", "enciende las
-  largas" sobre el HAL Vehicle (conectar intents `vehicle_*` al `VehicleService`).
+- ✅ **Cerebro LLM del asistente (Ollama)** (2026-09-08) — el asistente ya
+  **razona** con un LLM local además de los intents regex. Arquitectura híbrida:
+  el parser determinista es el fast-path y, cuando no entiende (`unknown`/baja
+  confianza), el texto cae a Ollama con **tool-calling**. `OllamaService`
+  (cliente HTTP a `localhost:11434`, `/api/chat` con `tools`, `OLLAMA_MODEL`/
+  `OLLAMA_URL` por env, disponibilidad cacheada) + `AssistantToolsService`
+  (16 tools sobre los módulos reales: radio, volumen, clima, media BT,
+  recordatorios/tareas, vehículo — luces/puertas/ventanillas/cierre/estado —,
+  sistema y abrir pantallas). System prompt que fuerza tool-use real y español
+  breve; bucle de tools con propagación de `VoiceUiAction`; contexto de los
+  últimos 8 turnos; degradación a solo regex si Ollama está caído. Esto cubre
+  de paso los **comandos de voz del vehículo** (luces/puertas/ventanillas/cierre
+  vía tools LLM). Modelo para RPi5 8 GB: `gemma4:e2b-it-qat` (~4.3 GB) o
+  `qwen3:4b` (~2.5 GB). Verificado en vivo: chat ("capital de Francia"→"París"),
+  recordatorio real en BD, fast-path regex intacto.
 - ⬜ **Acción de navegación** — que el intent `navigate` lance la ruta en la
   pantalla de mapas (hoy solo confirma; ya hay `open_nav` como atajo de UI).
 - ⬜ **Wake-word** — "Hey Hilux" (openWakeWord/Porcupine) para activación manos

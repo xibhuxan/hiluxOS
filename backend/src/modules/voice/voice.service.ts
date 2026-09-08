@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { VoiceDriver, VoiceAvailability } from './drivers/voice.driver';
 import { parseIntent, VoiceIntent } from './intent';
+import { OllamaService, OllamaMessage } from './ollama.service';
+import { AssistantToolsService } from './assistant-tools.service';
 import { EventsGateway } from '../events/events.gateway';
 import { RadioService, StationDto } from '../radio/radio.service';
 import { SystemService } from '../system/system.service';
@@ -74,6 +76,8 @@ export class VoiceService {
     private readonly system: SystemService,
     private readonly btmedia: BtMediaService,
     private readonly weather: WeatherService,
+    private readonly ollama: OllamaService,
+    private readonly tools: AssistantToolsService,
   ) {}
 
   /** The assistant's current public state. */
@@ -134,22 +138,33 @@ export class VoiceService {
   // ---- internals ----
 
   private async record(utterance: string, intent: VoiceIntent): Promise<VoiceTurn> {
-    const acted = intent.confidence >= ACT_THRESHOLD && intent.kind !== 'unknown';
+    let acted = intent.confidence >= ACT_THRESHOLD && intent.kind !== 'unknown';
     let reply = intent.reply;
     let action: VoiceUiAction | undefined;
+    let kind: string = intent.kind;
 
     if (acted) {
-      // Execute the intent against the real modules. The executor returns the
-      // *actual* outcome as the spoken reply (e.g. "Sintonizando Los 40" once
-      // the station is really playing, or "No tengo esa emisora en favoritos").
+      // Fast path: the deterministic parser recognised the command — execute
+      // it directly against the real modules (radio, volume, weather, …).
       const result = await this.execute(intent);
       reply = result.reply;
       action = result.action;
+    } else {
+      // The regex brain didn't understand. Fall back to the LLM (Ollama) which
+      // can reason, chat and call tools across every module. If Ollama isn't
+      // available we keep the parser's clarification reply.
+      const llm = await this.runLlm(utterance);
+      if (llm) {
+        reply = llm.reply;
+        action = llm.action;
+        acted = llm.acted;
+        kind = llm.kind;
+      }
     }
 
     const turn: VoiceTurn = {
       utterance,
-      intent: intent.kind,
+      intent: kind,
       reply,
       acted,
       at: Date.now(),
@@ -160,6 +175,78 @@ export class VoiceService {
     // Notify live clients (the UI updates its conversation view).
     this.events.broadcast('voice', turn);
     return turn;
+  }
+
+  // ---- LLM brain (Ollama) ----
+
+  /** The system prompt that turns the model into the hiluxOS assistant. */
+  private systemPrompt(): string {
+    return (
+      'Eres Hilux, el asistente de voz de un coche (hiluxOS), integrado en el salpicadero. ' +
+      'Respondes SIEMPRE en español, de forma muy breve y natural (1-2 frases), pensada para escuchar, no para leer. ' +
+      'Tienes herramientas (tools) para ACTUAR sobre el coche y el sistema: radio, volumen, clima, música Bluetooth, ' +
+      'recordatorios/tareas, luces/puertas/ventanillas del vehículo, estado del sistema y abrir pantallas. ' +
+      'REGLA ESTRICTA: cuando el usuario pida una acción (poner/quitar radio, subir volumen, añadir o listar ' +
+      'recordatorios, encender luces, abrir una pantalla, el tiempo, etc.) DEBES llamar a la herramienta ' +
+      'correspondiente. NUNCA afirmes que has hecho algo sin haber llamado antes a su herramienta: la acción solo ' +
+      'ocurre de verdad mediante la tool. ' +
+      'Cuando la herramienta devuelva el resultado, confírmalo en una frase breve basándote en ese resultado. ' +
+      'Si te piden varias cosas, llama a varias herramientas. ' +
+      'Solo si es una pregunta o charla que no requiere actuar sobre el sistema responde directamente, sin tools. ' +
+      'No inventes datos: si no sabes algo, dilo. Nunca respondas con JSON ni listas con viñetas.'
+    );
+  }
+
+  /**
+   * Run the LLM fallback with tool-calling. Returns the reply + optional UI
+   * action, or null when Ollama is unavailable/errors (caller keeps the
+   * parser's clarification reply). Maintains a short rolling context.
+   */
+  private async runLlm(utterance: string): Promise<{ reply: string; action?: VoiceUiAction; acted: boolean; kind: string } | null> {
+    if (!(await this.ollama.isAvailable())) return null;
+    try {
+      // Build the conversation: system + recent history + this utterance.
+      const messages: OllamaMessage[] = [{ role: 'system', content: this.systemPrompt() }];
+      for (const t of this.history.slice(-8)) {
+        messages.push({ role: 'user', content: t.utterance });
+        messages.push({ role: 'assistant', content: t.reply });
+      }
+      messages.push({ role: 'user', content: utterance });
+
+      let action: VoiceUiAction | undefined;
+      let acted = false;
+      let usedTool: string | null = null;
+
+      // Tool-calling loop: the model may call tools, we feed results back.
+      for (let round = 0; round < 4; round++) {
+        const msg = await this.ollama.chat(messages, this.tools.tools);
+        const calls = msg.tool_calls ?? [];
+        if (calls.length === 0) {
+          // Final text answer.
+          const reply = (msg.content ?? '').trim();
+          if (!reply) return null;
+          return { reply, action, acted, kind: usedTool ?? 'chat' };
+        }
+        // Record the assistant turn with its tool calls, then run each tool.
+        messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: calls });
+        for (const call of calls) {
+          const fn = call.function?.name ?? '';
+          const args = call.function?.arguments ?? {};
+          const result = await this.tools.run(fn, args);
+          usedTool = fn;
+          acted = true;
+          if (result.action) action = result.action as VoiceUiAction;
+          messages.push({ role: 'tool', tool_name: fn, content: result.text });
+        }
+      }
+      // Exhausted rounds: ask for a final summary without tools.
+      const finalMsg = await this.ollama.chat(messages);
+      const reply = (finalMsg.content ?? '').trim();
+      return reply ? { reply, action, acted, kind: usedTool ?? 'chat' } : null;
+    } catch (err) {
+      this.logger.warn(`LLM fallback failed: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   /**

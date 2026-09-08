@@ -1,5 +1,7 @@
 import { VoiceService } from './voice.service';
 import { MockVoiceDriver } from './drivers/mock-voice.driver';
+import { OllamaService } from './ollama.service';
+import { AssistantToolsService } from './assistant-tools.service';
 import { EventsGateway } from '../events/events.gateway';
 import { RadioService } from '../radio/radio.service';
 import { SystemService } from '../system/system.service';
@@ -62,8 +64,20 @@ function makeService() {
       daily: [{ tempMax: 25, tempMin: 14, precipitationProbability: 10 }],
     }),
   } as unknown as WeatherService;
-  const svc = new VoiceService(driver, events, radio, system, btmedia, weather);
-  return { svc, driver, events, radio, system, btmedia, weather };
+  // Ollama unavailable by default: the regex brain handles everything, so the
+  // existing tests keep their deterministic behaviour. Specs that exercise the
+  // LLM fallback override `isAvailable`/`chat` per-test.
+  const ollama = {
+    isAvailable: jest.fn().mockResolvedValue(false),
+    chat: jest.fn(),
+    model: 'test-model',
+  } as unknown as OllamaService;
+  const tools = {
+    tools: [],
+    run: jest.fn().mockResolvedValue({ text: 'ok' }),
+  } as unknown as AssistantToolsService;
+  const svc = new VoiceService(driver, events, radio, system, btmedia, weather, ollama, tools);
+  return { svc, driver, events, radio, system, btmedia, weather, ollama, tools };
 }
 
 describe('VoiceService (mock driver)', () => {
@@ -248,6 +262,79 @@ describe('VoiceService (mock driver)', () => {
       await svc.handleTextCommand('hola');
       svc.clearHistory();
       expect(svc.getHistory()).toEqual([]);
+    });
+  });
+
+  describe('LLM fallback (Ollama)', () => {
+    it('keeps the parser reply when Ollama is unavailable', async () => {
+      const { svc, ollama } = makeService();
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(false);
+      const turn = await svc.handleTextCommand('asdf qwerty');
+      expect(turn.intent).toBe('unknown');
+      expect(turn.acted).toBe(false);
+      expect(turn.reply).toMatch(/no te he entendido|ayuda/i);
+      expect(ollama.chat).not.toHaveBeenCalled();
+    });
+
+    it('answers a free-form question via the LLM when the parser fails', async () => {
+      const { svc, ollama } = makeService();
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(true);
+      (ollama.chat as jest.Mock).mockResolvedValue({
+        role: 'assistant',
+        content: 'La capital de Francia es París.',
+      });
+      const turn = await svc.handleTextCommand('cuál es la capital de Francia');
+      expect(turn.intent).toBe('chat');
+      expect(turn.acted).toBe(false);
+      expect(turn.reply).toMatch(/París/);
+    });
+
+    it('executes a tool the model asks for and speaks the result', async () => {
+      const { svc, ollama, tools } = makeService();
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(true);
+      (tools.run as jest.Mock).mockResolvedValue({ text: 'Anotado: cambiar aceite.' });
+      (ollama.chat as jest.Mock)
+        // First round: the model requests the add_task tool.
+        .mockResolvedValueOnce({
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ function: { name: 'add_task', arguments: { title: 'cambiar aceite' } } }],
+        })
+        // Second round: after the tool result, it produces the spoken reply.
+        .mockResolvedValueOnce({ role: 'assistant', content: 'Anotado: cambiar aceite.' });
+      const turn = await svc.handleTextCommand('recuérdame cambiar el aceite');
+      expect(tools.run).toHaveBeenCalledWith('add_task', { title: 'cambiar aceite' });
+      expect(turn.intent).toBe('add_task');
+      expect(turn.acted).toBe(true);
+      expect(turn.reply).toMatch(/aceite/i);
+    });
+
+    it('falls back to the parser reply when the LLM call throws', async () => {
+      const { svc, ollama } = makeService();
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(true);
+      (ollama.chat as jest.Mock).mockRejectedValue(new Error('connection refused'));
+      const turn = await svc.handleTextCommand('asdf qwerty');
+      expect(turn.intent).toBe('unknown');
+      expect(turn.acted).toBe(false);
+      expect(turn.reply).toMatch(/no te he entendido|ayuda/i);
+    });
+
+    it('propagates a UI action returned by a tool', async () => {
+      const { svc, ollama, tools } = makeService();
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(true);
+      (tools.run as jest.Mock).mockResolvedValue({
+        text: 'Abriendo la radio.',
+        action: { type: 'open_radio' },
+      });
+      (ollama.chat as jest.Mock)
+        .mockResolvedValueOnce({
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ function: { name: 'open_screen', arguments: { screen: 'radio' } } }],
+        })
+        .mockResolvedValueOnce({ role: 'assistant', content: 'Abriendo la radio.' });
+      const turn = await svc.handleTextCommand('ábreme la radio por favor');
+      expect(turn.action).toEqual({ type: 'open_radio' });
     });
   });
 });
