@@ -76,11 +76,18 @@
   `/voice` (tile "Asistente") con push-to-talk animado, historial de
   conversación, entrada de texto y reproducción TTS vía audioplayers.
   ⏳ Pendiente hardware: micro + modelo Vosk real y wake-word en la Pi.
+- ✅ **Acciones reales del asistente** (2026-09-08) — los intents ya **ejecutan**
+  sobre los módulos: `volume` ajusta el volumen maestro real (wpctl/amixer),
+  `weather`/`weather_forecast` responden con Open-Meteo en vivo, `media_control`
+  actúa sobre el HAL Bluetooth, y `radio` resuelve la emisora en el catálogo
+  (favoritas → búsqueda Radio Browser) y la **reproduce en la app** vía evento
+  WS `voice_action` (playback local en Flutter). Desambiguación por voz con
+  chips de emisoras en la pantalla `/voice` ("¿Cuál quieres?"). Respuesta
+  hablada = estado real ("Sintonizando ROCK FM", "Volumen al 40 por ciento").
 - ⬜ **Comandos de voz del vehículo** — "abre las ventanillas", "enciende las
   largas" sobre el HAL Vehicle (conectar intents `vehicle_*` al `VehicleService`).
-- ⬜ **Acciones reales del asistente** — que los intents `navigate`/`weather`/
-  `media`/`radio` ejecuten sobre sus servicios (hoy devuelven la confirmación
-  hablada; la acción concreta se enchufa a cada módulo).
+- ⬜ **Acción de navegación** — que el intent `navigate` lance la ruta en la
+  pantalla de mapas (hoy solo confirma; ya hay `open_nav` como atajo de UI).
 - ⬜ **Wake-word** — "Hey Hilux" (openWakeWord/Porcupine) para activación manos
   libres; hoy es push-to-talk.
 

@@ -128,9 +128,34 @@ export function parseIntent(text: string): VoiceIntent {
     return { kind: 'weather', confidence: 0.88, entities: city ? { city } : {}, ...base, reply: city ? `Consultando el tiempo en ${city}.` : 'Consultando el tiempo actual.' };
   }
 
+  // "pon X" where X is a bare station name → a radio station. This must run
+  // before PLAY_WORDS so "pon Los 40" isn't read as media play. But it must NOT
+  // hijack volume ("pon el volumen al veinte"), climate ("pon la calefacción")
+  // or music ("pon música"), so those words are excluded first.
+  if (!VOLUME_WORDS.test(raw) && !CLIMATE_WORDS.test(raw)) {
+    const m = /^pon(?:me)?\s+(?:la\s+|el\s+)?(.+)$/.exec(raw);
+    if (m && !/musica|cancion|radio|fm|emisora/.test(m[1])) {
+      const station = m[1].trim();
+      return { kind: 'radio', confidence: 0.85, entities: { station }, ...base, reply: `Sintonizando ${station}.` };
+    }
+  }
+
   if (RADIO_WORDS.test(raw)) {
-    const station = extractPlace(raw, /(?:pon|sintoniza|escucha)/);
-    return { kind: 'radio', confidence: 0.8, entities: station ? { station } : {}, ...base, reply: station ? `Sintonizando ${station}.` : 'Encendiendo la radio.' };
+    // The reply is a placeholder — the service resolves the real station and
+    // overwrites it with the outcome (playing X / not found / disambiguation).
+    const isStop = /(?:apaga|quita|deten|para|calla|stop)/.test(raw);
+    if (isStop) {
+      return { kind: 'radio', confidence: 0.85, entities: { action: 'stop' }, ...base, reply: 'Apagando la radio.' };
+    }
+    const isList = /(?:cuales|que emisoras|lista|listado|tengo|guardadas|favoritas)/.test(raw);
+    if (isList) {
+      return { kind: 'radio', confidence: 0.85, entities: { action: 'list' }, ...base, reply: 'Estas son tus emisoras favoritas.' };
+    }
+    // Specific station? Capture the argument after the verb, but not the bare
+    // word "radio" itself ("pon la radio" = open radio, no specific station).
+    let station = extractPlace(raw, /(?:sintoniza|escucha|ponme|pon|quiero oir|quiero escuchar)/);
+    if (station && /^(radio|la radio|fm|emisoras?)$/.test(station)) station = null;
+    return { kind: 'radio', confidence: 0.85, entities: station ? { station } : {}, ...base, reply: station ? `Sintonizando ${station}.` : 'Encendiendo la radio.' };
   }
 
   if (CALL_WORDS.test(raw)) {

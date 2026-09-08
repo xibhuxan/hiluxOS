@@ -1,13 +1,69 @@
 import { VoiceService } from './voice.service';
 import { MockVoiceDriver } from './drivers/mock-voice.driver';
 import { EventsGateway } from '../events/events.gateway';
+import { RadioService } from '../radio/radio.service';
+import { SystemService } from '../system/system.service';
+import { BtMediaService } from '../btmedia/btmedia.service';
+import { WeatherService } from '../weather/weather.service';
 
-/** Build a service over a mock driver with a stubbed-out event bus. */
+/** A favourite-station-shaped object for the radio mock. */
+const FAV = {
+  id: 'fav-1',
+  name: 'Los 40',
+  url: 'http://los40.stream',
+  favicon: null,
+  country: 'Spain',
+  codec: 'MP3',
+  bitrate: 128,
+  tags: [],
+};
+
+/**
+ * Build a service over a mock driver with stubbed-out dependencies. The domain
+ * services are jest mocks so each spec can programme exactly the path it needs
+ * (a favourite that matches, a connected BT device, a weather reading, …).
+ */
 function makeService() {
   const driver = new MockVoiceDriver();
   const events = { broadcast: jest.fn() } as unknown as EventsGateway;
-  const svc = new VoiceService(driver, events);
-  return { svc, driver, events };
+  const radio = {
+    listFavorites: jest.fn().mockResolvedValue([FAV]),
+    listHistory: jest.fn().mockResolvedValue([]),
+    search: jest.fn().mockResolvedValue([]),
+    recordHistory: jest.fn().mockResolvedValue(undefined),
+  } as unknown as RadioService;
+  const system = {
+    getAudio: jest.fn().mockReturnValue({ volume: 50, muted: false }),
+    setAudioVolume: jest.fn(),
+    setAudioMuted: jest.fn(),
+    getResources: jest.fn().mockReturnValue({
+      memoryUsagePercent: 42,
+      loadAverage: { '1m': 0.5, '5m': 0.4, '15m': 0.3 },
+    }),
+    getTemperature: jest.fn().mockReturnValue({ celsius: 47 }),
+  } as unknown as SystemService;
+  const btmedia = {
+    getState: jest.fn().mockReturnValue({ connected: true }),
+    play: jest.fn(),
+    pause: jest.fn(),
+    next: jest.fn(),
+    previous: jest.fn(),
+  } as unknown as BtMediaService;
+  const weather = {
+    getCurrent: jest.fn().mockResolvedValue({
+      location: { name: 'Madrid' },
+      temperature: 22.4,
+      apparentTemperature: 21.8,
+      description: 'Despejado',
+      windSpeed: 12.3,
+    }),
+    getForecast: jest.fn().mockResolvedValue({
+      location: { name: 'Madrid' },
+      daily: [{ tempMax: 25, tempMin: 14, precipitationProbability: 10 }],
+    }),
+  } as unknown as WeatherService;
+  const svc = new VoiceService(driver, events, radio, system, btmedia, weather);
+  return { svc, driver, events, radio, system, btmedia, weather };
 }
 
 describe('VoiceService (mock driver)', () => {
@@ -46,6 +102,91 @@ describe('VoiceService (mock driver)', () => {
       expect(turn.intent).toBe('unknown');
       expect(turn.acted).toBe(false);
       expect(turn.reply).toMatch(/no te he entendido/i);
+    });
+
+    it('plays a favourite station by name and broadcasts voice_action', async () => {
+      const { svc, events, radio } = makeService();
+      const turn = await svc.handleTextCommand('pon Los 40');
+      expect(turn.intent).toBe('radio');
+      expect(turn.acted).toBe(true);
+      expect(turn.reply).toMatch(/sintonizando los 40/i);
+      expect(turn.action?.type).toBe('open_radio');
+      expect(events.broadcast).toHaveBeenCalledWith(
+        'voice_action',
+        expect.objectContaining({ type: 'radio_play', station: expect.objectContaining({ name: 'Los 40' }) }),
+      );
+      expect(radio.recordHistory).toHaveBeenCalled();
+    });
+
+    it('lists favourite stations when asked', async () => {
+      const { svc } = makeService();
+      const turn = await svc.handleTextCommand('qué emisoras tengo');
+      expect(turn.intent).toBe('radio');
+      expect(turn.reply).toMatch(/los 40/i);
+      expect(turn.action?.type).toBe('choose_station');
+      expect(turn.action?.stations).toHaveLength(1);
+    });
+
+    it('resumes the first favourite on a bare "pon la radio"', async () => {
+      const { svc, events } = makeService();
+      const turn = await svc.handleTextCommand('pon la radio');
+      expect(turn.intent).toBe('radio');
+      expect(turn.reply).toMatch(/encendiendo la radio/i);
+      expect(events.broadcast).toHaveBeenCalledWith(
+        'voice_action',
+        expect.objectContaining({ type: 'radio_play' }),
+      );
+    });
+
+    it('says when there are no favourites to list', async () => {
+      const { svc, radio } = makeService();
+      (radio.listFavorites as jest.Mock).mockResolvedValue([]);
+      const turn = await svc.handleTextCommand('qué emisoras tengo');
+      expect(turn.reply).toMatch(/no tienes emisoras favoritas/i);
+    });
+
+    it('sets an absolute volume level', async () => {
+      const { svc, system } = makeService();
+      const turn = await svc.handleTextCommand('volumen al 30');
+      expect(turn.intent).toBe('volume');
+      expect(system.setAudioVolume).toHaveBeenCalledWith(30);
+      expect(turn.reply).toMatch(/30 por ciento/i);
+    });
+
+    it('steps the volume up from the current level', async () => {
+      const { svc, system } = makeService();
+      const turn = await svc.handleTextCommand('sube el volumen');
+      expect(system.setAudioVolume).toHaveBeenCalledWith(60);
+      expect(turn.reply).toMatch(/60 por ciento/i);
+    });
+
+    it('mutes on "silencia"', async () => {
+      const { svc, system } = makeService();
+      await svc.handleTextCommand('silencia el volumen');
+      expect(system.setAudioMuted).toHaveBeenCalledWith(true);
+    });
+
+    it('answers the weather with real data', async () => {
+      const { svc, weather } = makeService();
+      const turn = await svc.handleTextCommand('qué tiempo hace');
+      expect(turn.intent).toBe('weather');
+      expect(weather.getCurrent).toHaveBeenCalled();
+      expect(turn.reply).toMatch(/grados/i);
+    });
+
+    it('controls Bluetooth media when a device is connected', async () => {
+      const { svc, btmedia } = makeService();
+      const turn = await svc.handleTextCommand('siguiente canción');
+      expect(turn.intent).toBe('media_control');
+      expect(btmedia.next).toHaveBeenCalled();
+      expect(turn.reply).toMatch(/siguiente/i);
+    });
+
+    it('reports when no Bluetooth device is connected', async () => {
+      const { svc, btmedia } = makeService();
+      (btmedia.getState as jest.Mock).mockReturnValue({ connected: false });
+      const turn = await svc.handleTextCommand('pon música');
+      expect(turn.reply).toMatch(/bluetooth/i);
     });
 
     it('broadcasts a voice event for each turn', async () => {

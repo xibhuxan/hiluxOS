@@ -1,15 +1,17 @@
 import { INestApplication } from '@nestjs/common';
-import { buildApp, agent } from './setup';
+import { buildApp, agent, PrismaMock } from './setup';
 
 /**
  * E2E over the voice REST surface, driven by the mock voice driver (no
  * microphone or speech models needed). EventsGateway is stubbed by buildApp.
+ * The Prisma mock lets us seed favourite stations for the radio intents.
  */
 describe('Voice (e2e)', () => {
   let app: INestApplication;
+  let prisma: PrismaMock;
 
   beforeAll(async () => {
-    ({ app } = await buildApp());
+    ({ app, prisma } = await buildApp());
   });
 
   afterAll(async () => {
@@ -62,5 +64,62 @@ describe('Voice (e2e)', () => {
     await agent(app).delete('/api/voice/history').expect(200);
     const res = await agent(app).get('/api/voice/history').expect(200);
     expect(res.body.history).toEqual([]);
+  });
+
+  it('POST /api/voice/command "pon <emisora>" plays a seeded favourite', async () => {
+    // Seed one favourite station in the Prisma mock.
+    prisma.favorite.findMany.mockResolvedValue([
+      {
+        id: 'fav-1',
+        station: {
+          id: 'st-1',
+          name: 'Los 40',
+          url: 'http://los40.stream',
+          favicon: null,
+          country: 'Spain',
+          codec: 'MP3',
+          bitrate: 128,
+          tags: [],
+        },
+      },
+    ]);
+    prisma.history.create.mockResolvedValue({});
+
+    const res = await agent(app)
+      .post('/api/voice/command')
+      .send({ text: 'pon Los 40' })
+      .expect(201);
+    expect(res.body.intent).toBe('radio');
+    expect(res.body.acted).toBe(true);
+    expect(res.body.reply).toMatch(/sintonizando los 40/i);
+    expect(res.body.action.type).toBe('open_radio');
+  });
+
+  it('POST /api/voice/command "qué emisoras tengo" lists the favourites', async () => {
+    prisma.favorite.findMany.mockResolvedValue([
+      {
+        id: 'fav-1',
+        station: {
+          id: 'st-1',
+          name: 'Los 40',
+          url: 'http://los40.stream',
+          favicon: null,
+          country: 'Spain',
+          codec: 'MP3',
+          bitrate: 128,
+          tags: [],
+        },
+      },
+    ]);
+
+    const res = await agent(app)
+      .post('/api/voice/command')
+      .send({ text: 'qué emisoras tengo' })
+      .expect(201);
+    expect(res.body.intent).toBe('radio');
+    expect(res.body.acted).toBe(true);
+    expect(res.body.reply).toMatch(/los 40/i);
+    expect(res.body.action.type).toBe('choose_station');
+    expect(res.body.action.stations).toHaveLength(1);
   });
 });

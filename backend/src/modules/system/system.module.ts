@@ -6,5 +6,7 @@ import { CommandRunner } from './command-runner';
 @Module({
   controllers: [SystemController],
   providers: [CommandRunner, SystemService],
+  // Export so the voice assistant can drive master volume/mute.
+  exports: [SystemService],
 })
 export class SystemModule {}

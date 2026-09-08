@@ -191,5 +191,50 @@ void main() {
     expect(t.intent, 'help');
     expect(t.acted, true);
     expect(t.at, 123);
+    expect(t.action, isNull);
+  });
+
+  testWidgets('parses a VoiceTurn with a choose_station action', (tester) async {
+    final t = VoiceTurn.fromJson(const {
+      'utterance': 'qué emisoras tengo',
+      'intent': 'radio',
+      'reply': 'Tienes 1 favorita: Los 40.',
+      'acted': true,
+      'at': 5,
+      'action': {
+        'type': 'choose_station',
+        'stations': [
+          {
+            'id': 'st-1',
+            'name': 'Los 40',
+            'url': 'http://los40.stream',
+            'favicon': null,
+            'country': 'Spain',
+            'codec': 'MP3',
+            'bitrate': 128,
+            'tags': <String>[],
+          },
+        ],
+      },
+    });
+    expect(t.intent, 'radio');
+    expect(t.action, isNotNull);
+    expect(t.action!.type, 'choose_station');
+    expect(t.action!.stations, hasLength(1));
+    expect(t.action!.stations.first.name, 'Los 40');
+    expect(t.action!.stations.first.url, 'http://los40.stream');
+  });
+
+  testWidgets('parses a VoiceTurn with an open_radio action (no stations)', (tester) async {
+    final t = VoiceTurn.fromJson(const {
+      'utterance': 'pon la radio',
+      'intent': 'radio',
+      'reply': 'Encendiendo la radio con Los 40.',
+      'acted': true,
+      'at': 6,
+      'action': {'type': 'open_radio'},
+    });
+    expect(t.action!.type, 'open_radio');
+    expect(t.action!.stations, isEmpty);
   });
 }

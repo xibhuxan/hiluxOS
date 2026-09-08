@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
+import '../../core/api/websocket_service.dart';
 import '../../shared/models/station.dart';
 import 'audio_player_provider.dart';
 import 'spectrum_provider.dart';
@@ -49,10 +52,40 @@ class RadioState {
 }
 
 class RadioNotifier extends StateNotifier<RadioState> {
-  RadioNotifier(this._api, this._audio, this._spectrum) : super(RadioState());
+  RadioNotifier(this._api, this._audio, this._spectrum, [WebSocketService? ws])
+      : super(RadioState()) {
+    _listenVoice(ws);
+  }
   final ApiClient _api;
   final AudioPlayerService _audio;
   final SpectrumNotifier _spectrum;
+  StreamSubscription<Map<String, dynamic>>? _voiceSub;
+
+  /// React to the voice assistant: it resolves the station backend-side and
+  /// tells us which one to play (playback is local, see AudioPlayerService).
+  void _listenVoice(WebSocketService? ws) {
+    if (ws == null) return;
+    _voiceSub = ws.events.listen((msg) {
+      if (msg['event'] != 'voice_action') return;
+      final data = msg['data'];
+      if (data is! Map<String, dynamic>) return;
+      switch (data['type']) {
+        case 'radio_play':
+          final raw = data['station'];
+          if (raw is Map<String, dynamic>) play(Station.fromJson(raw));
+          break;
+        case 'radio_stop':
+          stop();
+          break;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _voiceSub?.cancel();
+    super.dispose();
+  }
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
@@ -145,5 +178,6 @@ final radioProvider = StateNotifierProvider<RadioNotifier, RadioState>(
     ref.watch(apiClientProvider),
     ref.watch(audioPlayerProvider),
     ref.watch(spectrumProvider.notifier),
+    ref.watch(webSocketServiceProvider),
   ),
 );

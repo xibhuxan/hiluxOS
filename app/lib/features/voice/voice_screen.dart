@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
+import '../radio/radio_provider.dart';
 import 'voice_provider.dart';
 
 /// Voice-assistant screen: a big push-to-talk mic button, an animated status
@@ -90,13 +92,14 @@ class _EmptyView extends StatelessWidget {
   }
 }
 
-/// One conversation turn: the user's utterance (right) and the reply (left).
-class _TurnBubble extends StatelessWidget {
+/// One conversation turn: the user's utterance (right) and the reply (left),
+/// plus any UI action the assistant attached (station picker, "open" button).
+class _TurnBubble extends ConsumerWidget {
   const _TurnBubble({required this.turn});
   final VoiceTurn turn;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Column(
@@ -127,18 +130,25 @@ class _TurnBubble extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.glassBorder),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.assistant,
-                      size: 16,
-                      color: turn.acted ? AppColors.accent : AppColors.muted),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(turn.reply,
-                        style: const TextStyle(
-                            fontSize: 14.5, color: AppColors.onBackground)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.assistant,
+                          size: 16,
+                          color: turn.acted ? AppColors.accent : AppColors.muted),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(turn.reply,
+                            style: const TextStyle(
+                                fontSize: 14.5, color: AppColors.onBackground)),
+                      ),
+                    ],
                   ),
+                  if (turn.action != null) _ActionRow(action: turn.action!),
                 ],
               ),
             ),
@@ -146,6 +156,71 @@ class _TurnBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The interactive part of a reply: tappable station chips (choose_station)
+/// and/or an "open the screen" button (open_radio / open_media / open_nav).
+class _ActionRow extends ConsumerWidget {
+  const _ActionRow({required this.action});
+  final VoiceUiAction action;
+
+  static const _routes = {
+    'open_radio': ('/radio', 'Abrir radio', Icons.radio),
+    'open_media': ('/media', 'Abrir música', Icons.library_music),
+    'open_nav': ('/maps', 'Abrir navegación', Icons.navigation),
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final children = <Widget>[];
+
+    // Tappable station candidates → play the chosen one.
+    if (action.stations.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final s in action.stations)
+                ActionChip(
+                  avatar: const Icon(Icons.radio, size: 16, color: AppColors.accent),
+                  label: Text(s.name, style: const TextStyle(fontSize: 12.5)),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.16),
+                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+                  onPressed: () => ref.read(radioProvider.notifier).play(s),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // "Open the screen" shortcut.
+    final route = _routes[action.type];
+    if (route != null) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            icon: Icon(route.$3, size: 16),
+            label: Text(route.$2, style: const TextStyle(fontSize: 12.5)),
+            onPressed: () => context.go(route.$1),
+          ),
+        ),
+      );
+    }
+
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
   }
 }
 

@@ -5,6 +5,22 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
+import '../../shared/models/station.dart';
+
+/// A UI hint attached to a turn (open a screen, offer a station picker, …).
+class VoiceUiAction {
+  final String type;
+  final List<Station> stations;
+
+  const VoiceUiAction({required this.type, this.stations = const []});
+
+  factory VoiceUiAction.fromJson(Map<String, dynamic> j) => VoiceUiAction(
+        type: j['type'] as String? ?? '',
+        stations: (j['stations'] as List<dynamic>? ?? [])
+            .map((e) => Station.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
 
 /// One turn of the conversation (user utterance + assistant reply).
 class VoiceTurn {
@@ -13,6 +29,7 @@ class VoiceTurn {
   final String reply;
   final bool acted;
   final int at;
+  final VoiceUiAction? action;
 
   const VoiceTurn({
     required this.utterance,
@@ -20,6 +37,7 @@ class VoiceTurn {
     required this.reply,
     required this.acted,
     required this.at,
+    this.action,
   });
 
   factory VoiceTurn.fromJson(Map<String, dynamic> j) => VoiceTurn(
@@ -28,6 +46,9 @@ class VoiceTurn {
         reply: j['reply'] as String? ?? '',
         acted: j['acted'] as bool? ?? false,
         at: (j['at'] as num?)?.toInt() ?? 0,
+        action: j['action'] is Map<String, dynamic>
+            ? VoiceUiAction.fromJson(j['action'] as Map<String, dynamic>)
+            : null,
       );
 }
 

@@ -9,5 +9,7 @@ import { SpectrumService } from './spectrum.service';
   imports: [EventsModule],
   controllers: [RadioController, SpectrumController],
   providers: [RadioService, SpectrumService],
+  // Export the catalogue so the voice assistant can resolve/play stations.
+  exports: [RadioService],
 })
 export class RadioModule {}
