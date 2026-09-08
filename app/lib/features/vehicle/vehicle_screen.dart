@@ -4,18 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../layout/app_shell.dart';
 import 'vehicle_provider.dart';
+import 'widgets/car_diagram.dart';
 import 'widgets/control_panel.dart';
 import 'widgets/dashboard.dart';
 
-/// The vehicle app: one screen, two faces.
+/// The vehicle app's three views.
+enum VehicleTab { car, control, dashboard }
+
+/// The vehicle app: one screen, three faces.
 ///
+/// - **Coche** — a top-down interactive diagram of the Hilux (tap doors and
+///   windows, lights and turn signals painted live).
 /// - **Control** — act on the car (engine, lights, turn signals, lock, alarm,
 ///   doors, windows) in the house glass style.
 /// - **Dashboard** — a pretty instrument cluster (speed + RPM gauges, fuel /
 ///   coolant / battery, cluster tell-tales), with a full-screen mode that
 ///   reuses the shell's FullscreenHost.
 ///
-/// Same state both ways: everything is the single `vehicleProvider` poll.
+/// Same state all ways: everything is the single `vehicleProvider` poll.
 class VehicleScreen extends ConsumerStatefulWidget {
   const VehicleScreen({super.key});
 
@@ -24,7 +30,7 @@ class VehicleScreen extends ConsumerStatefulWidget {
 }
 
 class _VehicleScreenState extends ConsumerState<VehicleScreen> {
-  bool _dashboard = false;
+  VehicleTab _tab = VehicleTab.car;
 
   @override
   Widget build(BuildContext context) {
@@ -51,20 +57,29 @@ class _VehicleScreenState extends ConsumerState<VehicleScreen> {
 
     return Column(
       children: [
-        // Mode toggle: Control ⇄ Dashboard.
+        // Mode toggle: Coche ⇄ Control ⇄ Dashboard.
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: _ModeToggle(
-            dashboard: _dashboard,
-            onChanged: (v) => setState(() => _dashboard = v),
+            tab: _tab,
+            onChanged: (v) => setState(() => _tab = v),
           ),
         ),
         Expanded(
           child: !connected
               ? _notConnected()
-              : _dashboard
-                  ? Dashboard(snap: snap, onFullscreen: _enterFullscreen)
-                  : const ControlPanel(),
+              : switch (_tab) {
+                  VehicleTab.dashboard =>
+                    Dashboard(snap: snap, onFullscreen: _enterFullscreen),
+                  VehicleTab.control => const ControlPanel(),
+                  VehicleTab.car => SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: AspectRatio(
+                        aspectRatio: 0.52,
+                        child: CarDiagram(snap: snap),
+                      ),
+                    ),
+                },
         ),
       ],
     );
@@ -102,20 +117,19 @@ class _VehicleScreenState extends ConsumerState<VehicleScreen> {
   }
 }
 
-/// Segmented Control/Dashboard toggle in the house style.
+/// Segmented Coche/Control/Dashboard toggle in the house style.
 class _ModeToggle extends StatelessWidget {
-  const _ModeToggle({required this.dashboard, required this.onChanged});
+  const _ModeToggle({required this.tab, required this.onChanged});
 
-  final bool dashboard;
-  final ValueChanged<bool> onChanged;
+  final VehicleTab tab;
+  final ValueChanged<VehicleTab> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    // Each segment emits ITS OWN value (Control => false, Dashboard => true).
-    // Emitting `!active` made the inactive segment re-emit the current mode,
-    // so from Dashboard tapping "Control" kept you in Dashboard.
-    Widget segment(String label, IconData icon, bool value) {
-      final active = dashboard == value;
+    // Each segment emits ITS OWN tab. (The previous bool version emitted
+    // `!active`, which made the inactive segment re-emit the current mode.)
+    Widget segment(String label, IconData icon, VehicleTab value) {
+      final active = tab == value;
       return Expanded(
         child: InkWell(
           onTap: () => onChanged(value),
@@ -158,9 +172,11 @@ class _ModeToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          segment('Control', Icons.tune, false),
+          segment('Coche', Icons.directions_car_outlined, VehicleTab.car),
           const SizedBox(width: 3),
-          segment('Dashboard', Icons.dashboard_outlined, true),
+          segment('Control', Icons.tune, VehicleTab.control),
+          const SizedBox(width: 3),
+          segment('Dashboard', Icons.dashboard_outlined, VehicleTab.dashboard),
         ],
       ),
     );
