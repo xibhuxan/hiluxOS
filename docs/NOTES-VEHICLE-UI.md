@@ -1,5 +1,11 @@
 # Notas de trabajo — Vehículo: UI v2 (pestañas, gauges, ventanillas en vivo)
 
+> **✅ IMPLEMENTADO 2026-09-08** — Los 3 bugs y la pestaña "Coche" están hechos
+> y commiteados en `feature/develop` (commits `ccb3430` toggle, `38bac65` gauge,
+> `48c5947` ventanillas en vivo, `1c347bf` pestaña Coche). 332 tests (96 Flutter),
+> analyze limpio. Este documento queda como registro del diagnóstico y las
+> decisiones de diseño. Lo que sigue es el material original de la sesión.
+
 > Documento de mano para la siguiente sesión. La app Vehículo (Fase 3) está
 > terminada, en `feature/develop` con CI verde (327 tests: 135 unit + 101 e2e +
 > 91 Flutter). Esto es el **feedback del usuario tras usarla en vivo** (2026-09-06)
