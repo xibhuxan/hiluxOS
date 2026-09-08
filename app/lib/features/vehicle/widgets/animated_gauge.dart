@@ -72,7 +72,11 @@ class _AnimatedGaugeState extends State<AnimatedGauge>
           unit: widget.unit,
           redlineFrom: widget.redlineFrom,
         ),
-        child: Center(
+        // Value + unit sit BELOW the needle pivot (the painter draws the
+        // needle from the exact center) — like a real cluster, where the
+        // number lives under the hub, not on top of it.
+        child: Align(
+          alignment: const Alignment(0, 0.55),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
