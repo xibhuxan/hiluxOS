@@ -12,6 +12,7 @@ import '../features/equalizer/equalizer_screen.dart';
 import '../features/btmedia/btmedia_screen.dart';
 import '../features/weather/weather_screen.dart';
 import '../features/maps/maps_screen.dart';
+import '../features/voice/voice_screen.dart';
 import 'app_shell.dart';
 
 /// Fade + slight slide-up transition used by the shell routes.
@@ -93,6 +94,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/maps',
             pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const MapsScreen()),
+          ),
+          GoRoute(
+            path: '/voice',
+            pageBuilder: (_, state) => _fadeSlidePage(key: state.pageKey, child: const VoiceScreen()),
           ),
         ],
       ),

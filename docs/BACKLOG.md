@@ -67,12 +67,22 @@
 
 ## Voz / inteligencia
 
-- ⬜ **Asistente de voz** — push-to-talk + Vosk (STT offline) + intents para
-  controlar el sistema ("pon radio", "sube volumen", "navega a casa"). TTS con
-  Piper (offline).
+- ✅ **Asistente de voz** (2026-09-08) — pipeline completo: motor de intenciones
+  NLU en español (navegación, clima, media, radio, llamadas, climatización,
+  volumen, estado, ayuda), HAL de voz con driver `mock` (determinista, sin mic)
+  y `vosk` (Vosk ASR + Piper TTS, env `VOICE_DRIVER`), REST `/api/voice`
+  (`GET` estado, `POST /command`, `POST /listen` PCM, `POST /speak` WAV,
+  `GET/DELETE /history`) + eventos WS `voice`/`voice_status`. Pantalla
+  `/voice` (tile "Asistente") con push-to-talk animado, historial de
+  conversación, entrada de texto y reproducción TTS vía audioplayers.
+  ⏳ Pendiente hardware: micro + modelo Vosk real y wake-word en la Pi.
 - ⬜ **Comandos de voz del vehículo** — "abre las ventanillas", "enciende las
-  largas" sobre el HAL Vehicle.
-- ⬜ **Radio por voz** — "pon la emisora X" buscando en favoritos/online.
+  largas" sobre el HAL Vehicle (conectar intents `vehicle_*` al `VehicleService`).
+- ⬜ **Acciones reales del asistente** — que los intents `navigate`/`weather`/
+  `media`/`radio` ejecuten sobre sus servicios (hoy devuelven la confirmación
+  hablada; la acción concreta se enchufa a cada módulo).
+- ⬜ **Wake-word** — "Hey Hilux" (openWakeWord/Porcupine) para activación manos
+  libres; hoy es push-to-talk.
 
 ## Sistema / plataforma
 
@@ -89,4 +99,4 @@
 ---
 
 ### Implementadas (esta tanda, 2026-09-08)
-- Clima · Navegación/Mapas · Bluetooth Media — detalle en `STATUS.md`.
+- Clima · Navegación/Mapas · Bluetooth Media · **Asistente de voz** — detalle en `STATUS.md`.

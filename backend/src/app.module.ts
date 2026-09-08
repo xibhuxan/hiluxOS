@@ -18,6 +18,7 @@ import { EqualizerModule } from './modules/equalizer/equalizer.module';
 import { BtMediaModule } from './modules/btmedia/btmedia.module';
 import { WeatherModule } from './modules/weather/weather.module';
 import { MapsModule } from './modules/maps/maps.module';
+import { VoiceModule } from './modules/voice/voice.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { MapsModule } from './modules/maps/maps.module';
     BtMediaModule,
     WeatherModule,
     MapsModule,
+    VoiceModule,
   ],
 })
 export class AppModule {}

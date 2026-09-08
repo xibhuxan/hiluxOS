@@ -25,6 +25,8 @@ String? shellTitleFor(
       return 'Clima';
     case '/maps':
       return 'Navegación';
+    case '/voice':
+      return 'Asistente';
     default:
       return null;
   }

@@ -20,7 +20,7 @@ class AppDrawerGrid extends ConsumerWidget {
     _AppDef(path: '/maps', name: 'Navegación', icon: Icons.map_outlined, color: AppColors.accent, enabled: true),
     _AppDef(path: '/btmedia', name: 'Bluetooth', icon: Icons.bluetooth, color: AppColors.primary, enabled: true),
     _AppDef(path: '/camera', name: 'Camera', icon: Icons.videocam_outlined, color: AppColors.danger, enabled: false),
-    _AppDef(path: '/voice', name: 'Voice', icon: Icons.mic_outlined, color: AppColors.purple, enabled: false),
+    _AppDef(path: '/voice', name: 'Asistente', icon: Icons.mic_outlined, color: AppColors.purple, enabled: true),
   ];
 
   @override

@@ -1,11 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { EventsGateway } from './modules/events/events.gateway';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+
+  // Raw PCM body for the voice listen endpoint (mic audio), mounted BEFORE the
+  // global JSON parser so the Buffer reaches the controller untouched.
+  app.use('/api/voice/listen', express.raw({ type: '*/*', limit: '10mb' }));
   const logger = new Logger('Bootstrap');
   const port = process.env.PORT ?? '3000';
   const corsOrigin = process.env.CORS_ORIGIN ?? '*';
