@@ -15,6 +15,7 @@ class AppDrawerGrid extends ConsumerWidget {
     _AppDef(path: '/system', name: 'System', icon: Icons.memory, color: AppColors.accent, enabled: true),
     _AppDef(path: '/settings', name: 'Settings', icon: Icons.settings, color: AppColors.purple, enabled: true),
     _AppDef(path: '/media', name: 'Media', icon: Icons.library_music_outlined, color: AppColors.warning, enabled: true),
+    _AppDef(path: '/equalizer', name: 'Ecualizador', icon: Icons.equalizer, color: AppColors.primary, enabled: true),
     _AppDef(path: '/bluetooth', name: 'Bluetooth', icon: Icons.bluetooth, color: AppColors.primary, enabled: false),
     _AppDef(path: '/camera', name: 'Camera', icon: Icons.videocam_outlined, color: AppColors.danger, enabled: false),
     _AppDef(path: '/voice', name: 'Voice', icon: Icons.mic_outlined, color: AppColors.purple, enabled: false),

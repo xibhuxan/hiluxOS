@@ -17,6 +17,8 @@ String? shellTitleFor(
       return 'Ajustes';
     case '/vehicle':
       return 'Vehículo';
+    case '/equalizer':
+      return 'Ecualizador';
     default:
       return null;
   }

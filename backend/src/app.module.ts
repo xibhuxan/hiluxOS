@@ -14,6 +14,7 @@ import { MediaModule } from './modules/media/media.module';
 import { VehicleModule } from './modules/vehicle/vehicle.module';
 import { PowerModule } from './modules/power/power.module';
 import { GpioModule } from './modules/gpio/gpio.module';
+import { EqualizerModule } from './modules/equalizer/equalizer.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { GpioModule } from './modules/gpio/gpio.module';
     VehicleModule,
     PowerModule,
     GpioModule,
+    EqualizerModule,
   ],
 })
 export class AppModule {}
