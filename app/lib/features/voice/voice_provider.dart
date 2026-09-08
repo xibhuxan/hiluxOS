@@ -99,6 +99,10 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
   final ApiClient _api;
   final AudioPlayer _player = AudioPlayer();
 
+  /// Voice commands can fall back to the local LLM, which is slow (tens of
+  /// seconds on a Pi) — much longer than the global 10 s receive timeout.
+  static const _cmdTimeout = Duration(minutes: 3);
+
   /// Load availability + history.
   Future<void> refresh() async {
     try {
@@ -126,13 +130,19 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
     if (text.trim().isEmpty) return;
     state = state.copyWith(status: 'thinking');
     try {
-      final res = await _api.post('/voice/command', data: {'text': text.trim()});
+      final res = await _api.post(
+        '/voice/command',
+        data: {'text': text.trim()},
+        receiveTimeout: _cmdTimeout,
+      );
       final turn = VoiceTurn.fromJson(res.data as Map<String, dynamic>);
       _append(turn);
       state = state.copyWith(status: 'idle');
       await speakReply(turn.reply);
     } catch (_) {
-      state = state.copyWith(status: 'idle', backendReachable: false);
+      // Don't flip the whole screen to "unavailable" on a single failed/slow
+      // command — a real outage is detected by refresh().
+      state = state.copyWith(status: 'idle');
     }
   }
 
@@ -147,13 +157,14 @@ class VoiceNotifier extends StateNotifier<VoiceState> {
         data: pcm,
         // Raw octet-stream; Dio sends the bytes as-is.
         options: Options(contentType: 'application/octet-stream'),
+        receiveTimeout: _cmdTimeout,
       );
       final turn = VoiceTurn.fromJson(res.data as Map<String, dynamic>);
       _append(turn);
       state = state.copyWith(status: 'idle');
       await speakReply(turn.reply);
     } catch (_) {
-      state = state.copyWith(status: 'idle', backendReachable: false);
+      state = state.copyWith(status: 'idle');
     }
   }
 

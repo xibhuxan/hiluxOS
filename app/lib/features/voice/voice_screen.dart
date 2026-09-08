@@ -342,7 +342,7 @@ class _ControlBarState extends ConsumerState<_ControlBar>
       case 'listening':
         return 'Escuchando…';
       case 'thinking':
-        return 'Procesando…';
+        return 'Pensando… (el asistente local puede tardar unos segundos)';
       case 'speaking':
         return 'Hablando…';
       default:
