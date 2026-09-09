@@ -58,13 +58,13 @@ interface OllamaChatResponse {
  *
  * Configuration (env):
  *   OLLAMA_URL    default http://localhost:11434
- *   OLLAMA_MODEL  default gemma4:e2b-it-qat (fits a Raspberry Pi 5 8 GB)
+ *   OLLAMA_MODEL  default qwen3.5:4b (good Spanish + tool-calling, fits a Pi 5)
  */
 @Injectable()
 export class OllamaService {
   private readonly logger = new Logger(OllamaService.name);
   private readonly baseUrl = (process.env.OLLAMA_URL ?? 'http://localhost:11434').replace(/\/$/, '');
-  readonly model = process.env.OLLAMA_MODEL ?? 'gemma4:e2b-it-qat';
+  readonly model = process.env.OLLAMA_MODEL ?? 'qwen3.5:4b';
   /** Cached availability so we don't hammer the server on every turn. */
   private available: boolean | null = null;
   private lastCheck = 0;
@@ -110,15 +110,18 @@ export class OllamaService {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(60_000),
+      // A small local model can take a while to reason + emit tool calls,
+      // especially with the full tool catalogue, so allow a generous window.
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model: this.model,
         messages,
         ...(tools && tools.length > 0 ? { tools } : {}),
         stream: false,
         // Keep the context small & fast on the Pi; the assistant only needs a
-        // short conversation + tool results, not a huge window.
-        options: { num_ctx: 4096, temperature: 0.3 },
+        // short conversation + tool results, not a huge window. Low temperature
+        // keeps tool selection deterministic.
+        options: { num_ctx: 2048, temperature: 0.2 },
       }),
     });
     if (!res.ok) {

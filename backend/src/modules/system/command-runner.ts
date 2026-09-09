@@ -44,4 +44,17 @@ export class CommandRunner {
       input: stdin,
     });
   }
+
+  /**
+   * Run a command with a binary (PCM) stdin payload, returning raw stdout bytes.
+   * Used by the voice driver to stream captured audio to the ASR helper.
+   */
+  runOrThrowBuffer(bin: string, args: string[], timeoutMs = 2000, stdin?: Buffer): Buffer {
+    return execFileSync(bin, args, {
+      timeout: timeoutMs,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: stdin,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  }
 }

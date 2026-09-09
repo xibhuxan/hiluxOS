@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { CommandRunner } from '../../system/command-runner';
 import { VoiceDriver, VoiceAvailability } from './voice.driver';
 
@@ -19,45 +20,61 @@ import { VoiceDriver, VoiceAvailability } from './voice.driver';
 export class VoskVoiceDriver extends VoiceDriver {
   readonly kind = 'vosk';
 
+  /**
+   * Path to the capture helper script. Works whether the driver runs from
+   * `src/modules/voice/drivers` (ts-node) or `dist/modules/voice/drivers`
+   * (compiled): walk up to the `backend/` dir, then into `src/`.
+   */
+  private static readonly CAPTURE_SCRIPT = join(
+    __dirname, '..', '..', '..', '..', 'src', 'modules', 'voice', 'drivers', 'vosk_capture.py',
+  );
+
   constructor(
     private readonly cmd: CommandRunner,
-    private readonly modelPath = process.env.VOSK_MODEL ?? '/opt/hiluxos/models/vosk-es',
-    private readonly piperBin = process.env.PIPER_BIN ?? 'piper',
-    private readonly piperVoice = process.env.PIPER_VOICE ?? '/opt/hiluxos/models/piper/es_ES.onnx',
+    private readonly modelPath = process.env.VOSK_MODEL ?? '/home/xibhu/.hiluxos/models/vosk-es',
+    /** Python with vosk + sounddevice installed (the project venv). */
+    private readonly pythonBin = process.env.VOICE_PYTHON ?? '/home/xibhu/.hiluxos-venv/bin/python',
+    private readonly piperBin = process.env.PIPER_BIN ?? '/home/xibhu/.hiluxos/models/piper/piper/piper',
+    private readonly piperVoice = process.env.PIPER_VOICE ?? '/home/xibhu/.hiluxos/models/piper_voices/es_ES-sharvard-medium.onnx',
   ) {
     super();
   }
 
   async availability(): Promise<VoiceAvailability> {
     // A model directory + a capture device → ASR. A piper binary + voice → TTS.
-    const asrModel = this.cmd.run('test', ['-d', this.modelPath]) !== null ||
-      this.cmd.run('sh', ['-c', `test -d ${this.modelPath}`]) !== null;
-    const hasMic = this.cmd.run('sh', ['-c', 'arecord -l | grep -q "card"']) !== null;
-    const asr = asrModel && hasMic;
+    const asrModel = this.cmd.run('test', ['-d', this.modelPath]) !== null;
+    const hasMic = this.cmd.run('sh', ['-c', 'arecord -l 2>/dev/null | grep -q "card"']) !== null;
+    const python = this.cmd.run('test', ['-x', this.pythonBin]) !== null;
+    const asr = asrModel && hasMic && python;
 
-    const piper = this.cmd.run('sh', ['-c', `command -v ${this.piperBin}`]) !== null;
-    const voice = this.cmd.run('sh', ['-c', `test -f ${this.piperVoice}`]) !== null;
+    const piper = this.cmd.run('sh', ['-c', `command -v ${this.piperBin} 2>/dev/null`]) !== null;
+    const voice = this.cmd.run('test', ['-f', this.piperVoice]) !== null;
     const tts = piper && voice;
 
     const note = !asr && !tts
       ? 'Ni Vosk ni Piper están disponibles'
       : !asr
-        ? 'ASR no disponible (falta modelo o micrófono)'
+        ? 'ASR no disponible (falta modelo, micrófono o el venv de Python)'
         : !tts
           ? 'TTS no disponible (falta Piper o voz)'
           : null;
     return { asr, tts, note };
   }
 
-  async transcribe(pcm: Buffer): Promise<string> {
-    // Pipe the PCM to a Vosk helper. The helper prints the recognised text on
-    // stdout. Best-effort: any failure → empty string (treated as "no oído").
+  /**
+   * Capture a few seconds from the real microphone with sounddevice and
+   * transcribe with Vosk. The `pcm` argument is ignored on the real driver
+   * (audio comes from the mic, not the caller); it exists to satisfy the
+   * VoiceDriver contract the mock uses in tests. Best-effort: any failure →
+   * empty string ("no oído").
+   */
+  async transcribe(_pcm: Buffer): Promise<string> {
     try {
+      const seconds = (process.env.VOICE_LISTEN_SECONDS ?? '4').toString();
       const out = this.cmd.runOrThrow(
-        'vosk_transcribe',
-        ['--model', this.modelPath],
-        15000,
-        pcm.toString('base64'), // helper decodes base64 PCM on stdin
+        this.pythonBin,
+        [VoskVoiceDriver.CAPTURE_SCRIPT, this.modelPath, seconds],
+        30000, // model load (cold) + capture window + transcription
       );
       return (out ?? '').trim();
     } catch {

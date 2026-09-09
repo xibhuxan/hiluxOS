@@ -179,11 +179,20 @@ export class VoiceService {
 
   // ---- LLM brain (Ollama) ----
 
-  /** The system prompt that turns the model into the hiluxOS assistant. */
-  private systemPrompt(): string {
+  /**
+   * The system prompt that turns the model into the hiluxOS assistant. The
+   * caller injects the user's favourite radio stations so the model can map a
+   * spoken name ("la de anime", "rock") to the real station without a brittle
+   * substring match.
+   */
+  private systemPrompt(stations: string[]): string {
+    const stationLine = stations.length > 0
+      ? `Las emisoras favoritas del usuario son: ${stations.join(', ')}. Cuando pida la radio por nombre o descripción (p. ej. "la de anime", "rock", "los 40"), identifica cuál de estas favoritas encaja y llama a radio_play con el nombre EXACTO de esa emisora; si ninguna encaja claramente, llama a radio_play con el término que dijo para buscarla. `
+      : 'El usuario no tiene emisoras favoritas guardadas; si pide una por nombre, llama a radio_play con ese nombre para buscarla en el catálogo. ';
     return (
       'Eres Hilux, el asistente de voz de un coche (hiluxOS), integrado en el salpicadero. ' +
       'Respondes SIEMPRE en español, de forma muy breve y natural (1-2 frases), pensada para escuchar, no para leer. ' +
+      stationLine +
       'Tienes herramientas (tools) para ACTUAR sobre el coche y el sistema: radio, volumen, clima, música Bluetooth, ' +
       'recordatorios/tareas, luces/puertas/ventanillas del vehículo, estado del sistema y abrir pantallas. ' +
       'REGLA ESTRICTA: cuando el usuario pida una acción (poner/quitar radio, subir volumen, añadir o listar ' +
@@ -193,6 +202,7 @@ export class VoiceService {
       'Cuando la herramienta devuelva el resultado, confírmalo en una frase breve basándote en ese resultado. ' +
       'Si te piden varias cosas, llama a varias herramientas. ' +
       'Solo si es una pregunta o charla que no requiere actuar sobre el sistema responde directamente, sin tools. ' +
+      'Si te preguntan qué modelo de IA eres, contesta que eres Hilux, el asistente del coche. ' +
       'No inventes datos: si no sabes algo, dilo. Nunca respondas con JSON ni listas con viñetas.'
     );
   }
@@ -205,8 +215,15 @@ export class VoiceService {
   private async runLlm(utterance: string): Promise<{ reply: string; action?: VoiceUiAction; acted: boolean; kind: string } | null> {
     if (!(await this.ollama.isAvailable())) return null;
     try {
+      // Give the model the user's favourite stations so it can map a spoken
+      // name to the real one (the whole point of "ponme la de anime").
+      let stationNames: string[] = [];
+      try {
+        stationNames = ((await this.radio.listFavorites()) ?? []).map((s) => s.name);
+      } catch { /* favourites are best-effort context */ }
+
       // Build the conversation: system + recent history + this utterance.
-      const messages: OllamaMessage[] = [{ role: 'system', content: this.systemPrompt() }];
+      const messages: OllamaMessage[] = [{ role: 'system', content: this.systemPrompt(stationNames) }];
       for (const t of this.history.slice(-8)) {
         messages.push({ role: 'user', content: t.utterance });
         messages.push({ role: 'assistant', content: t.reply });
@@ -217,15 +234,17 @@ export class VoiceService {
       let acted = false;
       let usedTool: string | null = null;
 
-      // Tool-calling loop: the model may call tools, we feed results back.
+      // Tool-calling loop: the model may call tools, we feed results back. A
+      // round with no tool calls and empty content is retried (small models
+      // occasionally return an empty message) rather than aborting.
       for (let round = 0; round < 4; round++) {
         const msg = await this.ollama.chat(messages, this.tools.tools);
         const calls = msg.tool_calls ?? [];
         if (calls.length === 0) {
-          // Final text answer.
           const reply = (msg.content ?? '').trim();
-          if (!reply) return null;
-          return { reply, action, acted, kind: usedTool ?? 'chat' };
+          if (reply) return { reply, action, acted, kind: usedTool ?? 'chat' };
+          if (acted) break; // tools ran but the model went quiet → summarise below
+          continue; // empty & nothing acted → retry
         }
         // Record the assistant turn with its tool calls, then run each tool.
         messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: calls });
@@ -239,8 +258,14 @@ export class VoiceService {
           messages.push({ role: 'tool', tool_name: fn, content: result.text });
         }
       }
-      // Exhausted rounds: ask for a final summary without tools.
-      const finalMsg = await this.ollama.chat(messages);
+
+      // Rounds exhausted (or the model went quiet after acting): ask for a
+      // final confirmation WITHOUT offering tools so it just summarises what
+      // happened. Guaranteed to produce a reply when tools ran.
+      const finalMessages: OllamaMessage[] = acted
+        ? [...messages, { role: 'user', content: 'Confirma en una frase breve lo que acabas de hacer.' }]
+        : messages;
+      const finalMsg = await this.ollama.chat(finalMessages);
       const reply = (finalMsg.content ?? '').trim();
       return reply ? { reply, action, acted, kind: usedTool ?? 'chat' } : null;
     } catch (err) {

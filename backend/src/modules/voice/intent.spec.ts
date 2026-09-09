@@ -98,10 +98,28 @@ describe('parseIntent', () => {
     it('parses turning on the radio', () => {
       expect(parseIntent('pon la radio').kind).toBe('radio');
     });
-    it('extracts a station when present', () => {
+    it('routes a named station to the LLM (low confidence, no regex match)', () => {
       const i = parseIntent('sintoniza la cope');
       expect(i.kind).toBe('radio');
-      expect(i.entities.station).toBe('cope');
+      // The name is deliberately NOT extracted by the parser — the LLM resolves
+      // it against the favourites, so the intent stays below the act threshold.
+      expect(i.confidence).toBeLessThan(0.5);
+      expect(i.entities.station).toBeUndefined();
+    });
+    it('routes "pon <station>" to the LLM rather than a regex substring match', () => {
+      const i = parseIntent('ponme la radio de anime');
+      expect(i.kind).toBe('radio');
+      expect(i.confidence).toBeLessThan(0.5);
+    });
+    it('keeps "pon la radio" (no name) as a high-confidence open/resume', () => {
+      const i = parseIntent('pon la radio');
+      expect(i.kind).toBe('radio');
+      expect(i.confidence).toBeGreaterThanOrEqual(0.5);
+    });
+    it('still treats volume and climate as their own intents, not radio', () => {
+      expect(parseIntent('pon el volumen al veinte').kind).toBe('volume');
+      expect(parseIntent('pon la calefacción a 21').kind).toBe('climate');
+      expect(parseIntent('pon música').kind).toBe('media_control');
     });
   });
 

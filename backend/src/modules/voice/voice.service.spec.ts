@@ -118,18 +118,32 @@ describe('VoiceService (mock driver)', () => {
       expect(turn.reply).toMatch(/no te he entendido/i);
     });
 
-    it('plays a favourite station by name and broadcasts voice_action', async () => {
-      const { svc, events, radio } = makeService();
-      const turn = await svc.handleTextCommand('pon Los 40');
-      expect(turn.intent).toBe('radio');
-      expect(turn.acted).toBe(true);
-      expect(turn.reply).toMatch(/sintonizando los 40/i);
-      expect(turn.action?.type).toBe('open_radio');
-      expect(events.broadcast).toHaveBeenCalledWith(
-        'voice_action',
-        expect.objectContaining({ type: 'radio_play', station: expect.objectContaining({ name: 'Los 40' }) }),
+    it('resolves a named station via the LLM (reads favourites) and plays it', async () => {
+      const { svc, events, radio, ollama, tools } = makeService();
+      // The parser no longer extracts the name — it hands the utterance to the
+      // LLM. Simulate Ollama being up and the model choosing radio_play("Los 40"),
+      // which the REAL AssistantToolsService maps to the catalogue.
+      (ollama.isAvailable as jest.Mock).mockResolvedValue(true);
+      (tools.run as jest.Mock).mockImplementation(async (name: string) =>
+        name === 'radio_play'
+          ? { text: 'Sintonizando Los 40.', action: { type: 'open_radio' } }
+          : { text: 'ok' },
       );
-      expect(radio.recordHistory).toHaveBeenCalled();
+      (ollama.chat as jest.Mock)
+        .mockResolvedValueOnce({
+          role: 'assistant', content: '',
+          tool_calls: [{ function: { name: 'radio_play', arguments: { station: 'Los 40' } } }],
+        })
+        .mockResolvedValueOnce({ role: 'assistant', content: 'Sintonizando Los 40.' });
+
+      const turn = await svc.handleTextCommand('pon Los 40');
+      expect(turn.intent).toBe('radio_play');
+      expect(turn.acted).toBe(true);
+      expect(tools.run).toHaveBeenCalledWith('radio_play', { station: 'Los 40' });
+      expect(turn.action?.type).toBe('open_radio');
+      // listFavorites is read to give the model context for name resolution.
+      expect(radio.listFavorites).toHaveBeenCalled();
+      void events;
     });
 
     it('lists favourite stations when asked', async () => {
