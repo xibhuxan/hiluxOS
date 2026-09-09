@@ -98,9 +98,19 @@
   breve; bucle de tools con propagación de `VoiceUiAction`; contexto de los
   últimos 8 turnos; degradación a solo regex si Ollama está caído. Esto cubre
   de paso los **comandos de voz del vehículo** (luces/puertas/ventanillas/cierre
-  vía tools LLM). Modelo para RPi5 8 GB: `gemma4:e2b-it-qat` (~4.3 GB) o
-  `qwen3:4b` (~2.5 GB). Verificado en vivo: chat ("capital de Francia"→"París"),
-  recordatorio real en BD, fast-path regex intacto.
+  vía tools LLM). Modelo por defecto `qwen3.5:4b` (buen español + tool-calling);
+  también probados `gemma3:4b` y `functiongemma`. La **radio por nombre la
+  resuelve el LLM** leyendo las favoritas inyectadas en el system prompt (no
+  substring rígido). Verificado en vivo: "ponme la radio de anime"→`radio_play(Anime FM)`,
+  chat natural, fast-path regex instantáneo.
+- ✅ **Micro + voz reales (Vosk + Piper)** (2026-09-09) — `VoskVoiceDriver` graba
+  el micro con `sounddevice` + transcribe con Vosk (`vosk_capture.py`, venv
+  `~/.hiluxos-venv`, modelo `~/.hiluxos/models/vosk-es`) y habla con Piper
+  (voz `es_ES-sharvard-medium`). `VOICE_DRIVER=vosk` → `asr:true, tts:true` y
+  `/voice/speak` devuelve WAV real. Verificado el pipeline; en la Pi con micro
+  USB transcribirá (el micro interno del portátil dev capta saturado).
+  ⏳ Pendiente: **latencia del LLM en CPU dev (~60-100 s)** — valorar cuantización
+  menor, modelo más pequeño o keep-alive del modelo en Ollama.
 - ⬜ **Acción de navegación** — que el intent `navigate` lance la ruta en la
   pantalla de mapas (hoy solo confirma; ya hay `open_nav` como atajo de UI).
 - ⬜ **Wake-word** — "Hey Hilux" (openWakeWord/Porcupine) para activación manos
